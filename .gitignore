@@ -1,0 +1,14 @@
+# Google OAuth / secrets
+token.json
+credentials.json
+service-account.json
+
+# Uploads
+uploads/
+
+# Node
+node_modules/
+
+# Env
+.env
+
