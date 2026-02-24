@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Dashboard</title>
+</head>
+<body>
+  <%- include('../partials/header') %>
+  <div style="display:flex;">
+    <%- include('../partials/sidebar') %>
+
+    <div style="padding:20px; flex:1;">
+      <h2>Dashboard</h2>
+
+      <p>Welcome, Super Admin</p>
+
+      <!-- Metrics will come here -->
+      <div style="padding:20px; flex:1;">
+  <h2>Dashboard</h2>
+
+  <% if (metrics) { %>
+    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:20px;">
+      <div>
+        <h3>Total Schools</h3>
+        <p><%= metrics.totalSchools %></p>
+      </div>
+      <div>
+        <h3>Total Students</h3>
+        <p><%= metrics.totalStudents %></p>
+      </div>
+      <div>
+        <h3>Photos Completed</h3>
+        <p><%= metrics.completedPhotos %></p>
+      </div>
+      <div>
+        <h3>Photos Pending</h3>
+        <p><%= metrics.pendingPhotos %></p>
+      </div>
+    </div>
+  <% } else { %>
+    <p>Unable to load dashboard metrics.</p>
+  <% } %>
+</div>
+</body>
+</html>

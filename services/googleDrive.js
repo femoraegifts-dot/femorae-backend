@@ -1,80 +1,83 @@
 const fs = require("fs");
-const path = require("path");
-const readline = require("readline");
 const { google } = require("googleapis");
+const { authorize } = require("./googleAuth");
 
-const SCOPES = ["https://www.googleapis.com/auth/drive.file"];
-const TOKEN_PATH = path.join(__dirname, "../token.json");
-const CREDENTIALS_PATH = path.join(__dirname, "../credentials.json");
+/* =====================================================
+   FIND OR CREATE FOLDER
+===================================================== */
+async function getOrCreateFolder(drive, name, parentId = null) {
+  const q = parentId
+    ? `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`
+    : `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
 
-async function authorize() {
-  const credentials = JSON.parse(
-    fs.readFileSync(CREDENTIALS_PATH, "utf8")
-  );
+  const res = await drive.files.list({
+    q,
+    fields: "files(id, name)",
+  });
 
-  const { client_id, client_secret } = credentials.installed;
-
-  // 🔐 Explicit redirect URI (critical fix)
-  const oAuth2Client = new google.auth.OAuth2(
-    client_id,
-    client_secret,
-    "http://localhost"
-  );
-
-  if (fs.existsSync(TOKEN_PATH)) {
-    oAuth2Client.setCredentials(
-      JSON.parse(fs.readFileSync(TOKEN_PATH))
-    );
-    return oAuth2Client;
+  if (res.data.files.length > 0) {
+    return res.data.files[0].id;
   }
 
-  const authUrl = oAuth2Client.generateAuthUrl({
-    access_type: "offline",
-    scope: SCOPES,
-    prompt: "consent",
+  const folder = await drive.files.create({
+    requestBody: {
+      name,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: parentId ? [parentId] : [],
+    },
+    fields: "id",
   });
 
-  console.log("\n🔑 OPEN THIS URL IN A NEW INCOGNITO WINDOW:\n");
-  console.log(authUrl, "\n");
-
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve, reject) => {
-    rl.question("Paste the authorization code here: ", async (code) => {
-      rl.close();
-      try {
-        const { tokens } = await oAuth2Client.getToken(code.trim());
-        oAuth2Client.setCredentials(tokens);
-        fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens));
-        console.log("✅ Token saved to token.json");
-        resolve(oAuth2Client);
-      } catch (err) {
-        console.error("❌ TOKEN ERROR:", err.message);
-        reject(err);
-      }
-    });
-  });
+  return folder.data.id;
 }
 
-async function uploadToDrive(filePath, fileName, folderId) {
+/* =====================================================
+   DELETE FILE IF EXISTS
+===================================================== */
+async function deleteIfExists(drive, fileName, parentId) {
+  const res = await drive.files.list({
+    q: `name='${fileName}' and '${parentId}' in parents and trashed=false`,
+    fields: "files(id)",
+  });
+
+  for (const file of res.data.files) {
+    await drive.files.delete({ fileId: file.id });
+  }
+}
+
+/* =====================================================
+   UPLOAD TO DRIVE
+===================================================== */
+async function uploadToDrive({
+  filePath,
+  fileName,
+  schoolName,
+  className,
+  divisionName,
+}) {
   const auth = await authorize();
   const drive = google.drive({ version: "v3", auth });
 
-  const response = await drive.files.create({
+  const rootId = await getOrCreateFolder(drive, "ID Card");
+  const schoolId = await getOrCreateFolder(drive, schoolName, rootId);
+  const classId = await getOrCreateFolder(drive, className, schoolId);
+  const divisionId = await getOrCreateFolder(drive, divisionName, classId);
+
+  await deleteIfExists(drive, fileName, divisionId);
+
+  const res = await drive.files.create({
     requestBody: {
       name: fileName,
-      parents: [folderId],
+      parents: [divisionId],
     },
     media: {
       mimeType: "image/jpeg",
       body: fs.createReadStream(filePath),
     },
+    fields: "id",
   });
 
-  return response.data;
+  return res.data;
 }
 
 module.exports = { uploadToDrive };

@@ -2,22 +2,42 @@ const express = require("express");
 const router = express.Router();
 const db = require("../config/db");
 
-router.get("/summary", (req, res) => {
-  const sql = `
-    SELECT
-      COUNT(*) AS total_students,
-      SUM(photo_status = 'completed') AS completed,
-      SUM(photo_status != 'completed') AS pending
-    FROM students
-  `;
+/**
+ * =====================================================
+ * GET /dashboard/summary?school_id=1
+ * =====================================================
+ */
+router.get("/summary", async (req, res) => {
+  const { school_id } = req.query;
 
-  db.query(sql, (err, result) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: "DB error" });
-    }
-    res.json(result[0]);
-  });
+  if (!school_id) {
+    return res.status(400).json({ error: "school_id required" });
+  }
+
+  try {
+    const [[row]] = await db.query(
+      `
+      SELECT
+        COUNT(*) AS total_students,
+        SUM(CASE WHEN approved_status = 'approved' THEN 1 ELSE 0 END) AS approved,
+        SUM(CASE WHEN approved_status != 'approved' OR approved_status IS NULL THEN 1 ELSE 0 END) AS pending
+      FROM students
+      WHERE school_id = ?
+        AND deleted_status = 0
+      `,
+      [school_id]
+    );
+
+    res.json({
+      total_students: Number(row.total_students) || 0,
+      approved: Number(row.approved) || 0,
+      pending: Number(row.pending) || 0,
+    });
+
+  } catch (err) {
+    console.error("❌ Dashboard error:", err);
+    res.status(500).json({ error: "Dashboard failed" });
+  }
 });
 
 module.exports = router;

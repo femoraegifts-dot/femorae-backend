@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Schools</title>
+</head>
+<body>
+
+  <%- include('../partials/header') %>
+
+  <div style="display:flex;">
+    <%- include('../partials/sidebar') %>
+
+    <div style="padding:20px; flex:1;">
+      <h2>All Schools</h2>
+
+      <% if (schools.length === 0) { %>
+        <p>No schools found.</p>
+      <% } else { %>
+        <table border="1" cellpadding="8" cellspacing="0">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>School Name</th>
+              <th>Location</th>
+              <th>Username</th>
+              <th>Total Students</th>
+              <th>Photos Completed</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% schools.forEach((school, i) => { %>
+              <tr>
+                <td><%= i + 1 %></td>
+                <td><%= school.name %></td>
+                <td><%= school.city %>, <%= school.state %></td>
+                <td><%= school.username %></td>
+                <td><%= school.total_students %></td>
+                <td><%= school.completed_photos || 0 %></td>
+                <td>
+                  <a href="#">View</a>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+
+    </div>
+  </div>
+
+</body>
+</html>

@@ -1,51 +1,49 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../config/db");
-const bcrypt = require("bcrypt");
 
 /**
- * LOGIN API
- * POST /login
- * body: { username, password }
+ * SCHOOL LOGIN
+ * POST /auth/login
  */
-router.post("/login", (req, res) => {
-  const { username, password } = req.body;
+router.post("/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
 
-  if (!username || !password) {
-    return res.status(400).json({ message: "Username and password required" });
-  }
-
-  const sql = "SELECT * FROM users WHERE username = ? AND active = 1";
-
-  db.query(sql, [username], async (err, results) => {
-    if (err) {
-      return res.status(500).json({ message: "Database error" });
+    if (!username || !password) {
+      return res.status(400).json({
+        message: "Username and password required",
+      });
     }
 
-    if (results.length === 0) {
+    const [rows] = await db.query(
+      "SELECT id, name, username, password FROM schools WHERE username = ?",
+      [username]
+    );
+
+    if (rows.length === 0) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const user = results[0];
+    const school = rows[0];
 
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
+    // ⚠️ plain text check (OK for now, hash later)
+    if (school.password !== password) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Login success
-    res.json({
+    return res.json({
       message: "Login successful",
-      user: {
-        id: user.id,
-        username: user.username,
-        class: user.class,
-        division: user.division,
-        role: user.role,
+      school: {
+        id: school.id,
+        name: school.name,
+        username: school.username,
       },
     });
-  });
+  } catch (err) {
+    console.error("AUTH LOGIN ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 module.exports = router;

@@ -2,52 +2,119 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const fs = require("fs");
-const path = require("path");
 const db = require("../config/db");
 const { uploadToDrive } = require("../services/googleDrive");
 
-// temp upload folder
+/* =====================================================
+   MULTER CONFIG
+===================================================== */
 const upload = multer({ dest: "uploads/" });
 
-// POST /api/upload/student-photo
+/* =====================================================
+   POST /api/upload/student-photo
+===================================================== */
 router.post("/student-photo", upload.single("photo"), async (req, res) => {
-  console.log("🔥 Upload endpoint HIT");
-
   try {
-    const { student_id } = req.body;
+    const studentCode = req.body.student_id;
 
-    if (!student_id || !req.file) {
-      return res.status(400).json({ message: "Missing data" });
+    if (!studentCode || !req.file) {
+      return res.status(400).json({
+        error: "student_id and photo required",
+      });
     }
 
-    const tempFilePath = req.file.path;
-    const fileName = `${student_id}.jpg`;
-
-    // ✅ Upload to Google Drive (optional but kept)
-    try {
-      await uploadToDrive(
-        tempFilePath,
-        fileName,
-        process.env.DRIVE_FOLDER_ID
-      );
-      console.log(`☁️ Uploaded to Drive: ${fileName}`);
-    } catch (e) {
-      console.warn("⚠️ Drive upload skipped / failed", e.message);
-    }
-
-    // ✅ UPDATE DATABASE (THIS WAS MISSING)
-    await db.query(
-      "UPDATE students SET photo_name=?, photo_status='completed' WHERE student_id=?",
-      [fileName, student_id]
+    /* =====================================================
+       1️⃣ FIND STUDENT + SCHOOL + CLASS + DIVISION
+    ===================================================== */
+    const [[student]] = await db.query(
+      `
+      SELECT
+        st.id                AS student_id,
+        s.name               AS school_name,
+        c.class_name         AS class_name,
+        d.division_name      AS division_name
+      FROM students st
+      JOIN schools s   ON s.id = st.school_id
+      JOIN classes c   ON c.id = st.class_id
+      JOIN divisions d ON d.id = st.division_id
+      JOIN student_field_values v
+        ON v.student_id = st.id
+      WHERE v.field_key = 'student_id'
+        AND v.field_value = ?
+      LIMIT 1
+      `,
+      [studentCode]
     );
 
-    // ✅ Cleanup temp file
-    fs.unlinkSync(tempFilePath);
+    if (!student) {
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({ error: "Student not found" });
+    }
 
-    res.json({ success: true, fileName });
+    /* =====================================================
+       2️⃣ BUILD FILE + FOLDER DATA
+    ===================================================== */
+    const fileName = `${studentCode}.jpg`;
+
+    const schoolName = student.school_name;
+    const className = `Class ${student.class_name}`;
+    const divisionName = student.division_name;
+
+    /* =====================================================
+       3️⃣ UPLOAD TO GOOGLE DRIVE
+       ID Card / School / Class / Division / file.jpg
+    ===================================================== */
+    const driveResult = await uploadToDrive({
+      filePath: req.file.path,
+      fileName,
+      schoolName,
+      className,
+      divisionName,
+    });
+
+    if (!driveResult || !driveResult.id) {
+      throw new Error("Drive upload failed (no file ID)");
+    }
+
+    console.log(
+      `☁️ Drive upload success → ${schoolName}/${className}/${divisionName}/${fileName}`
+    );
+
+    /* =====================================================
+       4️⃣ UPDATE DATABASE
+    ===================================================== */
+    await db.query(
+      `
+      UPDATE students
+      SET
+        photo_status = 'completed',
+        photo_drive_id = ?
+      WHERE id = ?
+      `,
+      [driveResult.id, student.student_id]
+    );
+
+    /* =====================================================
+       5️⃣ CLEANUP TEMP FILE
+    ===================================================== */
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    return res.json({
+      success: true,
+      drive_file_id: driveResult.id,
+    });
   } catch (err) {
-    console.error("❌ Upload failed:", err);
-    res.status(500).json({ message: "Upload failed" });
+    console.error("❌ Upload error:", err);
+
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    return res.status(500).json({
+      error: "Upload failed",
+    });
   }
 });
 
