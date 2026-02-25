@@ -11,7 +11,7 @@ const app = express();
 /* =========================
    DATABASE (LOAD ONCE)
 ========================= */
-const db = require("./config/db");
+//const db = require("./config/db");
 
 /* =========================
    MIDDLEWARES
@@ -63,19 +63,15 @@ app.use("/api/upload", uploadRoutes);
 /* =========================
    HEALTH CHECK
 ========================= */
-app.get("/", (req, res) => {
-  res.send("Femorae ID Backend is running 🚀");
+app.get("/test", (req, res) => {
+  res.json({ status: "backend alive" });
 });
 
 /* =========================
    START SERVER
 ========================= */
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`✅ Server started on http://localhost:${PORT}`);
-  console.log(
-    "🔐 ADMIN ENV CHECK:",
-    process.env.ADMIN_USERNAME,
-    process.env.ADMIN_PASSWORD
-  );
+const PORT = process.env.PORT || 8080;
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server started on port ${PORT}`);
 });
