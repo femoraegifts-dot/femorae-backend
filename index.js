@@ -63,6 +63,9 @@ app.use("/api/upload", uploadRoutes);
 /* =========================
    HEALTH CHECK
 ========================= */
+app.get("/", (req, res) => {
+  res.send("Femorae Backend Running 🚀");
+});
 app.get("/test", (req, res) => {
   res.json({ status: "backend alive" });
 });
