@@ -23,7 +23,7 @@ router.get("/summary", async (req, res) => {
         SUM(CASE WHEN approved_status <> 'approved' OR approved_status IS NULL THEN 1 ELSE 0 END) AS pending
       FROM students
       WHERE school_id = $1
-        AND deleted_status = 0
+        AND deleted_status = false
       `,
       [school_id]
     );
