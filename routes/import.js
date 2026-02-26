@@ -72,20 +72,22 @@ router.post(
 async function insertStudents(rows, school_id) {
   for (const r of rows) {
     await db.query(
-      `INSERT IGNORE INTO students
-       (student_id, name, class, division, house, place, post, pin, mobile, school_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        r.student_id,
-        r.name,
-        r.class,
-        r.division,
-        r.house,
-        r.place,
-        r.post,
-        r.pin,
-        r.mobile,
-        school_id,
+      `INSERT INTO students
+  (student_id, name, class, division, house, place, post, pin, mobile, school_id)
+  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+  ON CONFLICT (student_id) DO NOTHING
+  `,
+  [
+    r.student_id,
+    r.name,
+    r.class,
+    r.division,
+    r.house,
+    r.place,
+    r.post,
+    r.pin,
+    r.mobile,
+    school_id,
       ]
     );
   }
