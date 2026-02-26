@@ -15,18 +15,20 @@ router.get("/summary", async (req, res) => {
   }
 
   try {
-    const [[row]] = await db.query(
+    const { rows } = await db.query(
       `
       SELECT
         COUNT(*) AS total_students,
         SUM(CASE WHEN approved_status = 'approved' THEN 1 ELSE 0 END) AS approved,
-        SUM(CASE WHEN approved_status != 'approved' OR approved_status IS NULL THEN 1 ELSE 0 END) AS pending
+        SUM(CASE WHEN approved_status <> 'approved' OR approved_status IS NULL THEN 1 ELSE 0 END) AS pending
       FROM students
-      WHERE school_id = ?
+      WHERE school_id = $1
         AND deleted_status = 0
       `,
       [school_id]
     );
+
+    const row = rows[0];
 
     res.json({
       total_students: Number(row.total_students) || 0,
