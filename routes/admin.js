@@ -1,6 +1,7 @@
 /**
  * ============================================
  *  ADMIN ROUTES — FEMORAE ID SYSTEM
+ *  (UPDATED FOR POSTGRESQL)
  * ============================================
  */
 
@@ -53,19 +54,26 @@ router.get("/logout", (req, res) => {
  * ============================================
  */
 router.get("/dashboard", requireAdmin, async (req, res) => {
-  const [[schools]] = await db.query(
-    "SELECT COUNT(*) AS totalSchools FROM schools"
-  );
-  const [[students]] = await db.query(
-    "SELECT COUNT(*) AS totalStudents FROM students"
-  );
+  try {
+    // 🔥 UPDATED: pg returns { rows } instead of [[result]]
+    const schoolsResult = await db.query(
+      "SELECT COUNT(*) AS total_schools FROM schools"
+    );
 
-  res.render("admin/dashboard", {
-    metrics: {
-      totalSchools: schools.totalSchools,
-      totalStudents: students.totalStudents,
-    },
-  });
+    const studentsResult = await db.query(
+      "SELECT COUNT(*) AS total_students FROM students"
+    );
+
+    res.render("admin/dashboard", {
+      metrics: {
+        totalSchools: schoolsResult.rows[0].total_schools,
+        totalStudents: studentsResult.rows[0].total_students,
+      },
+    });
+  } catch (err) {
+    console.error("DASHBOARD ERROR:", err);
+    res.status(500).send("Server error");
+  }
 });
 
 /**
@@ -78,19 +86,25 @@ router.get("/dashboard", requireAdmin, async (req, res) => {
 router.get("/schools", requireAdmin, async (req, res) => {
   console.log("📌 /admin/schools HIT");
 
-  const [schools] = await db.query(`
-    SELECT 
-      s.id,
-      s.name,
-      s.username,
-      COUNT(st.id) AS total_students
-    FROM schools s
-    LEFT JOIN students st ON st.school_id = s.id
-    GROUP BY s.id
-    ORDER BY s.id DESC
-  `);
+  try {
+    // 🔥 UPDATED: pg result handling
+    const result = await db.query(`
+      SELECT 
+        s.id,
+        s.name,
+        s.username,
+        COUNT(st.id) AS total_students
+      FROM schools s
+      LEFT JOIN students st ON st.school_id = s.id
+      GROUP BY s.id
+      ORDER BY s.id DESC
+    `);
 
-  res.render("admin/schools_list", { schools });
+    res.render("admin/schools_list", { schools: result.rows });
+  } catch (err) {
+    console.error("LIST SCHOOLS ERROR:", err);
+    res.status(500).send("Server error");
+  }
 });
 
 // Show add school form
@@ -110,9 +124,10 @@ router.post("/schools/add", requireAdmin, async (req, res) => {
   }
 
   try {
+    // 🔥 UPDATED: ? → $1, $2, $3
     await db.query(
       `INSERT INTO schools (name, username, password)
-       VALUES (?, ?, ?)`,
+       VALUES ($1, $2, $3)`,
       [name, username, password]
     );
 
@@ -122,6 +137,7 @@ router.post("/schools/add", requireAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error("ADD SCHOOL ERROR:", err);
+
     res.render("admin/add_school", {
       error: "Username already exists",
       success: null,
@@ -139,11 +155,17 @@ router.post("/schools/add", requireAdmin, async (req, res) => {
 router.get("/students/import", requireAdmin, async (req, res) => {
   console.log("📌 /admin/students/import HIT");
 
-  const [schools] = await db.query(
-    "SELECT id, name FROM schools ORDER BY name"
-  );
+  try {
+    // 🔥 UPDATED: pg result handling
+    const result = await db.query(
+      "SELECT id, name FROM schools ORDER BY name"
+    );
 
-  res.render("admin/import_students", { schools });
+    res.render("admin/import_students", { schools: result.rows });
+  } catch (err) {
+    console.error("IMPORT PAGE ERROR:", err);
+    res.status(500).send("Server error");
+  }
 });
 
 /**
