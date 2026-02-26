@@ -5,8 +5,6 @@ const db = require("../config/db");
 /**
  * SCHOOL LOGIN (PostgreSQL Version)
  */
-
-console.log("DB object:", db);
 router.post("/login", async (req, res) => {
   try {
     const { username, password } = req.body;
