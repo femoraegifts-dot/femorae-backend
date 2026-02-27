@@ -1,17 +1,14 @@
 const fs = require("fs");
-const { google } = require("googleapis");
-const { authorize } = require("./googleAuth");
+const path = require("path");
+const { drive } = require("./googleAuth");
 
-/* =====================================================
-   FIND OR CREATE FOLDER
-===================================================== */
-async function getOrCreateFolder(drive, name, parentId = null) {
-  const q = parentId
-    ? `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`
+async function createFolderIfNotExists(name, parentId = null) {
+  const query = parentId
+    ? `name='${name}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
     : `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
 
   const res = await drive.files.list({
-    q,
+    q: query,
     fields: "files(id, name)",
   });
 
@@ -31,23 +28,6 @@ async function getOrCreateFolder(drive, name, parentId = null) {
   return folder.data.id;
 }
 
-/* =====================================================
-   DELETE FILE IF EXISTS
-===================================================== */
-async function deleteIfExists(drive, fileName, parentId) {
-  const res = await drive.files.list({
-    q: `name='${fileName}' and '${parentId}' in parents and trashed=false`,
-    fields: "files(id)",
-  });
-
-  for (const file of res.data.files) {
-    await drive.files.delete({ fileId: file.id });
-  }
-}
-
-/* =====================================================
-   UPLOAD TO DRIVE
-===================================================== */
 async function uploadToDrive({
   filePath,
   fileName,
@@ -55,29 +35,41 @@ async function uploadToDrive({
   className,
   divisionName,
 }) {
-  const auth = await authorize();
-  const drive = google.drive({ version: "v3", auth });
+  // Root folder
+  const rootFolderId = await createFolderIfNotExists("ID Card Storage");
 
-  const rootId = await getOrCreateFolder(drive, "ID Card");
-  const schoolId = await getOrCreateFolder(drive, schoolName, rootId);
-  const classId = await getOrCreateFolder(drive, className, schoolId);
-  const divisionId = await getOrCreateFolder(drive, divisionName, classId);
+  const schoolFolderId = await createFolderIfNotExists(
+    schoolName,
+    rootFolderId
+  );
 
-  await deleteIfExists(drive, fileName, divisionId);
+  const classFolderId = await createFolderIfNotExists(
+    className,
+    schoolFolderId
+  );
 
-  const res = await drive.files.create({
-    requestBody: {
-      name: fileName,
-      parents: [divisionId],
-    },
-    media: {
-      mimeType: "image/jpeg",
-      body: fs.createReadStream(filePath),
-    },
+  const divisionFolderId = await createFolderIfNotExists(
+    divisionName,
+    classFolderId
+  );
+
+  const fileMeta = {
+    name: fileName,
+    parents: [divisionFolderId],
+  };
+
+  const media = {
+    mimeType: "image/jpeg",
+    body: fs.createReadStream(filePath),
+  };
+
+  const uploaded = await drive.files.create({
+    requestBody: fileMeta,
+    media,
     fields: "id",
   });
 
-  return res.data;
+  return uploaded.data;
 }
 
 module.exports = { uploadToDrive };
