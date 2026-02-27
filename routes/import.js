@@ -70,26 +70,81 @@ router.post(
 
 // helper function
 async function insertStudents(rows, school_id) {
-  for (const r of rows) {
-    await db.query(
-      `INSERT INTO students
-  (student_id, name, class, division, house, place, post, pin, mobile, school_id)
-  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-  ON CONFLICT (student_id) DO NOTHING
-  `,
-  [
-    r.student_id,
-    r.name,
-    r.class,
-    r.division,
-    r.house,
-    r.place,
-    r.post,
-    r.pin,
-    r.mobile,
-    school_id,
-      ]
-    );
+
+  for (const originalRow of rows) {
+
+    // 🔹 Normalize keys to lowercase
+    const r = {};
+    for (const key of Object.keys(originalRow)) {
+      r[key.trim().toLowerCase()] = originalRow[key];
+    }
+
+    const client = await db.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      // 🔹 1️⃣ Get class_id
+      const classRes = await client.query(
+        `SELECT id FROM classes 
+         WHERE school_id = $1 AND LOWER(class_name) = LOWER($2)`,
+        [school_id, r.class]
+      );
+
+      if (classRes.rows.length === 0) {
+        throw new Error(`Class not found: ${r.class}`);
+      }
+
+      const class_id = classRes.rows[0].id;
+
+      // 🔹 2️⃣ Get division_id
+      const divisionRes = await client.query(
+        `SELECT id FROM divisions 
+         WHERE class_id = $1 AND LOWER(division_name) = LOWER($2)`,
+        [class_id, r.division]
+      );
+
+      if (divisionRes.rows.length === 0) {
+        throw new Error(`Division not found: ${r.division}`);
+      }
+
+      const division_id = divisionRes.rows[0].id;
+
+      // 🔹 3️⃣ Insert into students
+      const studentInsert = await client.query(
+        `
+        INSERT INTO students (school_id, class_id, division_id)
+        VALUES ($1, $2, $3)
+        RETURNING id
+        `,
+        [school_id, class_id, division_id]
+      );
+
+      const studentDbId = studentInsert.rows[0].id;
+
+      // 🔹 4️⃣ Insert dynamic fields (excluding class & division)
+      for (const key of Object.keys(r)) {
+
+        if (key === "class" || key === "division") continue;
+
+        await client.query(
+          `
+          INSERT INTO student_field_values
+          (student_id, field_key, field_value)
+          VALUES ($1, $2, $3)
+          `,
+          [studentDbId, key, r[key]]
+        );
+      }
+
+      await client.query("COMMIT");
+
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error("Import error:", err.message);
+    } finally {
+      client.release();
+    }
   }
 }
 
