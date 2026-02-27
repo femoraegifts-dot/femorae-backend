@@ -105,7 +105,7 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ Upload error:", err.response?.data || err);
+    console.error("❌ FULL Upload error:", JSON.stringify(err, null, 2));
 
     if (req.file?.path && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
