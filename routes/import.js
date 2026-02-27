@@ -87,7 +87,7 @@ async function insertStudents(rows, school_id) {
       // 🔹 1️⃣ Get class_id
       const classRes = await client.query(
         `SELECT id FROM classes 
-         WHERE school_id = $1 AND LOWER(class_name) = LOWER($2)`,
+         WHERE school_id = $1`,
         [school_id, r.class]
       );
 
