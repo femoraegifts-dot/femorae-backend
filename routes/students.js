@@ -52,7 +52,7 @@ router.get("/", async (req, res) => {
       WHERE s.school_id = ?
         AND s.class_id = ?
         AND s.division_id = ?
-        AND s.deleted_status = 0
+        AND COALESCE(s.deleted_status, false) = false
       GROUP BY s.id
       ORDER BY name
       `,
