@@ -51,15 +51,17 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
     }
 
     /* =====================================================
-       2️⃣ BUILD FILE INFO
-    ===================================================== */
-    const fileName = `${studentCode}.jpg`;
+   2️⃣ BUILD FILE INFO
+===================================================== */
+const fileName = `${studentCode}.jpg`;
 
-    const schoolName = student.school_name;
-    const className = `Class ${student.class_name}`;
-    const divisionName = student.division_name;
-    console.log("FILE PATH:", filePath);
-    console.log("FILE EXISTS:", fs.existsSync(filePath));
+const schoolName = student.school_name;
+const className = `Class ${student.class_name}`;
+const divisionName = student.division_name;
+
+/* 🔍 DEBUG */
+console.log("TEMP FILE PATH:", req.file.path);
+console.log("FILE EXISTS:", fs.existsSync(req.file.path));
 
     /* =====================================================
        3️⃣ UPLOAD TO GOOGLE DRIVE
