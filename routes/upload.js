@@ -58,6 +58,8 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
     const schoolName = student.school_name;
     const className = `Class ${student.class_name}`;
     const divisionName = student.division_name;
+    console.log("FILE PATH:", filePath);
+    console.log("FILE EXISTS:", fs.existsSync(filePath));
 
     /* =====================================================
        3️⃣ UPLOAD TO GOOGLE DRIVE
@@ -69,7 +71,7 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
       className,
       divisionName,
     });
-
+    
     if (!driveResult || !driveResult.id) {
       throw new Error("Drive upload failed (no file ID)");
     }
