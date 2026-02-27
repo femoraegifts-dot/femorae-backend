@@ -5,9 +5,6 @@ const fs = require("fs");
 const db = require("../config/db");
 const { uploadToDrive } = require("../services/googleDrive");
 
-/* =====================================================
-   MULTER CONFIG
-===================================================== */
 const upload = multer({ dest: "uploads/" });
 
 /* =====================================================
@@ -24,9 +21,9 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
     }
 
     /* =====================================================
-       1️⃣ FIND STUDENT + SCHOOL + CLASS + DIVISION
+       1️⃣ FIND STUDENT (PostgreSQL style)
     ===================================================== */
-    const [[student]] = await db.query(
+    const result = await db.query(
       `
       SELECT
         st.id                AS student_id,
@@ -40,11 +37,13 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
       JOIN student_field_values v
         ON v.student_id = st.id
       WHERE v.field_key = 'student_id'
-        AND v.field_value = ?
+        AND v.field_value = $1
       LIMIT 1
       `,
       [studentCode]
     );
+
+    const student = result.rows[0];
 
     if (!student) {
       fs.unlinkSync(req.file.path);
@@ -52,7 +51,7 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
     }
 
     /* =====================================================
-       2️⃣ BUILD FILE + FOLDER DATA
+       2️⃣ BUILD FILE INFO
     ===================================================== */
     const fileName = `${studentCode}.jpg`;
 
@@ -62,7 +61,6 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
 
     /* =====================================================
        3️⃣ UPLOAD TO GOOGLE DRIVE
-       ID Card / School / Class / Division / file.jpg
     ===================================================== */
     const driveResult = await uploadToDrive({
       filePath: req.file.path,
@@ -81,15 +79,15 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
     );
 
     /* =====================================================
-       4️⃣ UPDATE DATABASE
+       4️⃣ UPDATE STUDENT (PostgreSQL style)
     ===================================================== */
     await db.query(
       `
       UPDATE students
       SET
         photo_status = 'completed',
-        photo_drive_id = ?
-      WHERE id = ?
+        photo_drive_id = $1
+      WHERE id = $2
       `,
       [driveResult.id, student.student_id]
     );
@@ -105,6 +103,7 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
       success: true,
       drive_file_id: driveResult.id,
     });
+
   } catch (err) {
     console.error("❌ Upload error:", err);
 
