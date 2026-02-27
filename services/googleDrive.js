@@ -1,15 +1,34 @@
 const fs = require("fs");
-const path = require("path");
-const { drive } = require("./googleAuth");
+const { google } = require("googleapis");
 
-async function createFolderIfNotExists(name, parentId = null) {
-  const query = parentId
-    ? `name='${name}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
-    : `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+const FOLDER_ID = "1D_u0WKI6H2Taw2goKUPdGHQA8VVUE8o4";
+
+const auth = new google.auth.GoogleAuth({
+  credentials: {
+    client_email: process.env.GOOGLE_CLIENT_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+  },
+  scopes: ["https://www.googleapis.com/auth/drive"],
+});
+
+const drive = google.drive({
+  version: "v3",
+  auth,
+});
+
+async function createFolderIfNotExists(name, parentId) {
+  const query = `
+    name='${name}'
+    and '${parentId}' in parents
+    and mimeType='application/vnd.google-apps.folder'
+    and trashed=false
+  `;
 
   const res = await drive.files.list({
     q: query,
     fields: "files(id, name)",
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
   if (res.data.files.length > 0) {
@@ -20,9 +39,10 @@ async function createFolderIfNotExists(name, parentId = null) {
     requestBody: {
       name,
       mimeType: "application/vnd.google-apps.folder",
-      parents: parentId ? [parentId] : [],
+      parents: [parentId],
     },
     fields: "id",
+    supportsAllDrives: true,
   });
 
   return folder.data.id;
@@ -35,12 +55,10 @@ async function uploadToDrive({
   className,
   divisionName,
 }) {
-  // Root folder
-  const rootFolderId = await createFolderIfNotExists("ID Card Storage");
-
+  // Use your shared root folder
   const schoolFolderId = await createFolderIfNotExists(
     schoolName,
-    rootFolderId
+    FOLDER_ID
   );
 
   const classFolderId = await createFolderIfNotExists(
@@ -53,20 +71,17 @@ async function uploadToDrive({
     classFolderId
   );
 
-  const fileMeta = {
-    name: fileName,
-    parents: [divisionFolderId],
-  };
-
-  const media = {
-    mimeType: "image/jpeg",
-    body: fs.createReadStream(filePath),
-  };
-
   const uploaded = await drive.files.create({
-    requestBody: fileMeta,
-    media,
+    requestBody: {
+      name: fileName,
+      parents: [divisionFolderId],
+    },
+    media: {
+      mimeType: "image/jpeg",
+      body: fs.createReadStream(filePath),
+    },
     fields: "id",
+    supportsAllDrives: true,
   });
 
   return uploaded.data;
