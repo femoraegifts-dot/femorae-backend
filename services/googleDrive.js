@@ -1,7 +1,7 @@
 const fs = require("fs");
 const { google } = require("googleapis");
 
-const FOLDER_ID = "1D_u0WKI6H2Taw2goKUPdGHQA8VVUE8o4";
+const ROOT_FOLDER_ID = "1D_u0WKI6H2Taw2goKUPdGHQA8VVUE8o4";
 
 const auth = new google.auth.GoogleAuth({
   credentials: {
@@ -17,15 +17,8 @@ const drive = google.drive({
 });
 
 async function createFolderIfNotExists(name, parentId) {
-  const query = `
-    name='${name}'
-    and '${parentId}' in parents
-    and mimeType='application/vnd.google-apps.folder'
-    and trashed=false
-  `;
-
   const res = await drive.files.list({
-    q: query,
+    q: `name='${name}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
     fields: "files(id, name)",
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
@@ -55,10 +48,9 @@ async function uploadToDrive({
   className,
   divisionName,
 }) {
-  // Use your shared root folder
   const schoolFolderId = await createFolderIfNotExists(
     schoolName,
-    FOLDER_ID
+    ROOT_FOLDER_ID
   );
 
   const classFolderId = await createFolderIfNotExists(
@@ -71,7 +63,7 @@ async function uploadToDrive({
     classFolderId
   );
 
-  const uploaded = await drive.files.create({
+  const response = await drive.files.create({
     requestBody: {
       name: fileName,
       parents: [divisionFolderId],
@@ -84,7 +76,7 @@ async function uploadToDrive({
     supportsAllDrives: true,
   });
 
-  return uploaded.data;
+  return response.data;
 }
 
 module.exports = { uploadToDrive };
