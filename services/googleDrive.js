@@ -1,27 +1,69 @@
-const fs = require("fs");
 const { google } = require("googleapis");
+const fs = require("fs");
 
-const ROOT_FOLDER_ID = "1D_u0WKI6H2Taw2goKUPdGHQA8VVUE8o4";
+const oAuth2Client = new google.auth.OAuth2(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  "http://localhost"
+);
 
-const auth = new google.auth.GoogleAuth({
-  credentials: {
-    client_email: process.env.GOOGLE_CLIENT_EMAIL,
-    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-  },
-  scopes: ["https://www.googleapis.com/auth/drive"],
+oAuth2Client.setCredentials({
+  refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
 });
 
 const drive = google.drive({
   version: "v3",
-  auth,
+  auth: oAuth2Client,
 });
 
-async function createFolderIfNotExists(name, parentId) {
+async function uploadToDrive({
+  filePath,
+  fileName,
+  schoolName,
+  className,
+  divisionName,
+}) {
+  try {
+    // 1️⃣ Create / find school folder
+    const schoolFolder = await createOrGetFolder(schoolName, null);
+
+    // 2️⃣ Create / find class folder
+    const classFolder = await createOrGetFolder(className, schoolFolder);
+
+    // 3️⃣ Create / find division folder
+    const divisionFolder = await createOrGetFolder(
+      divisionName,
+      classFolder
+    );
+
+    // 4️⃣ Upload file
+    const response = await drive.files.create({
+      requestBody: {
+        name: fileName,
+        parents: [divisionFolder],
+      },
+      media: {
+        mimeType: "image/jpeg",
+        body: fs.createReadStream(filePath),
+      },
+      fields: "id",
+    });
+
+    return response.data;
+  } catch (err) {
+    console.error("DRIVE UPLOAD ERROR:", err.response?.data || err.message);
+    throw err;
+  }
+}
+
+async function createOrGetFolder(name, parentId) {
+  const query = parentId
+    ? `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`
+    : `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+
   const res = await drive.files.list({
-    q: `name='${name}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+    q: query,
     fields: "files(id, name)",
-    supportsAllDrives: true,
-    includeItemsFromAllDrives: true,
   });
 
   if (res.data.files.length > 0) {
@@ -32,51 +74,12 @@ async function createFolderIfNotExists(name, parentId) {
     requestBody: {
       name,
       mimeType: "application/vnd.google-apps.folder",
-      parents: [parentId],
+      parents: parentId ? [parentId] : undefined,
     },
     fields: "id",
-    supportsAllDrives: true,
   });
 
   return folder.data.id;
-}
-
-async function uploadToDrive({
-  filePath,
-  fileName,
-  schoolName,
-  className,
-  divisionName,
-}) {
-  const schoolFolderId = await createFolderIfNotExists(
-    schoolName,
-    ROOT_FOLDER_ID
-  );
-
-  const classFolderId = await createFolderIfNotExists(
-    className,
-    schoolFolderId
-  );
-
-  const divisionFolderId = await createFolderIfNotExists(
-    divisionName,
-    classFolderId
-  );
-
-  const response = await drive.files.create({
-    requestBody: {
-      name: fileName,
-      parents: [divisionFolderId],
-    },
-    media: {
-      mimeType: "image/jpeg",
-      body: fs.createReadStream(filePath),
-    },
-    fields: "id",
-    supportsAllDrives: true,
-  });
-
-  return response.data;
 }
 
 module.exports = { uploadToDrive };
