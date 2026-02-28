@@ -33,7 +33,11 @@ LEFT JOIN student_field_values v_id
 LEFT JOIN student_field_values v_name
   ON v_name.student_id = st.id
   AND v_name.field_key = 'name'
-ORDER BY st.id;
+WHERE st.school_id = $1
+  AND st.class_id = $2
+  AND st.division_id = $3
+  AND COALESCE(st.deleted_status, false) = false
+ORDER BY v_id.field_value::int;
   `,
   [schoolId, classId, divisionId]
     );
