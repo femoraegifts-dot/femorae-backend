@@ -20,24 +20,20 @@ router.get("/", async (req, res) => {
     const result = await db.query(
       `
       SELECT
-    st.id,
-    v_id.field_value AS student_id,
-    v_name.field_value AS name,
-    st.photo_status,
-    st.approved_status,
-    st.photo_drive_id
-  FROM students st
-  LEFT JOIN student_field_values v_id
-    ON v_id.student_id = st.id
-    AND v_id.field_key = 'student_id'
-  LEFT JOIN student_field_values v_name
-    ON v_name.student_id = st.id
-    AND v_name.field_key = 'name'
-  WHERE st.school_id = $1
-    AND st.class_id = $2
-    AND st.division_id = $3
-    AND st.deleted_status = false
-  ORDER BY v_id.field_value::int
+  st.id,
+  v_id.field_value AS student_id,
+  v_name.field_value AS name,
+  st.photo_status,
+  st.approved_status,
+  st.photo_drive_id
+FROM students st
+LEFT JOIN student_field_values v_id
+  ON v_id.student_id = st.id
+  AND v_id.field_key = 'student_id'
+LEFT JOIN student_field_values v_name
+  ON v_name.student_id = st.id
+  AND v_name.field_key = 'name'
+ORDER BY st.id;
   `,
   [schoolId, classId, divisionId]
     );
