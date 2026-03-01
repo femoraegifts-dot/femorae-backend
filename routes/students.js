@@ -81,15 +81,35 @@ router.get("/view/:id", async (req, res) => {
       [req.params.id]
     );
 
-    const fields = {};
-    fieldsRes.rows.forEach(row => {
-      fields[row.field_key] = row.field_value;
-    });
+    const schemaRes = await db.query(
+  `
+  SELECT field_key, field_label, required
+  FROM school_student_schema
+  WHERE school_id = (
+    SELECT school_id FROM students WHERE id = $1
+  )
+  AND active = true
+  ORDER BY field_order
+  `,
+  [req.params.id]
+);
 
-    res.json({
-      ...studentRes.rows[0],
-      fields: fields
-    });
+const valueMap = {};
+fieldsRes.rows.forEach(row => {
+  valueMap[row.field_key] = row.field_value;
+});
+
+const fields = schemaRes.rows.map(schemaField => ({
+  field_key: schemaField.field_key,
+  field_label: schemaField.field_label,
+  required: schemaField.required,
+  field_value: valueMap[schemaField.field_key] || ""
+}));
+
+res.json({
+  student: studentRes.rows[0],
+  fields: fields
+});
 
   } catch (err) {
     console.error("STUDENT VIEW ERROR:", err);
