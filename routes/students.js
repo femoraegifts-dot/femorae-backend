@@ -121,27 +121,46 @@ res.json({
 /* =====================================================
    APPROVE STUDENT
 ===================================================== */
-router.post("/:id/approve", async (req, res) => {
+// PUT /students/approve/:id
+router.put("/approve/:id", async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const result = await db.query(
+    await pool.query(
       `
       UPDATE students
       SET approved_status = 'approved',
           approved_at = NOW()
       WHERE id = $1
       `,
-      [req.params.id]
+      [id]
     );
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: "Student not found" });
-    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to approve student" });
+  }
+});
+
+// DELETE /students/:id
+router.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await pool.query(
+      `
+      UPDATE students
+      SET deleted_at = NOW()
+      WHERE id = $1
+      `,
+      [id]
+    );
 
     res.json({ success: true });
-
   } catch (err) {
-    console.error("APPROVAL ERROR:", err);
-    res.status(500).json({ error: "Approval failed" });
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete student" });
   }
 });
 
