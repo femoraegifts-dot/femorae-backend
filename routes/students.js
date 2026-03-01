@@ -146,21 +146,25 @@ router.put("/approve/:id", async (req, res) => {
 // DELETE /students/:id
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
+  const { name, role, mobile } = req.body;
 
   try {
     await pool.query(
       `
       UPDATE students
-      SET deleted_at = NOW()
-      WHERE id = $1
+      SET deleted_at = NOW(),
+          deleted_by_name = $1,
+          deleted_by_role = $2,
+          deleted_by_mobile = $3
+      WHERE id = $4
       `,
-      [id]
+      [name, role, mobile, id]
     );
 
     res.json({ success: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to delete student" });
+    res.status(500).json({ error: "Delete failed" });
   }
 });
 
