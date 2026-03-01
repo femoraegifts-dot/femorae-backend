@@ -34,7 +34,8 @@ router.get("/", async (req, res) => {
         AND st.division_id = $3
         AND COALESCE(st.deleted_status, false) = false
       GROUP BY st.id
-      ORDER BY student_id::int
+      ORDER BY
+        MAX(CASE WHEN sf.field_key = 'student_id' THEN sf.field_value END)
       `,
       [school_id, class_id, division_id]
     );
