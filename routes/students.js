@@ -253,12 +253,9 @@ router.post("/:id/approve", async (req, res) => {
     const result = await db.query(
       `
       UPDATE students
-      SET approved_status = 'approved',
-          approved_at = NOW(),
-          approved_by = $1,
-          approved_role = $2,
-          approved_mobile = $3
-      WHERE id = $4
+  SET approved_status = 'approved',
+      approved_at = NOW()
+  WHERE id = $1
       `,
       [approved_by, approved_role, approved_mobile, id]
     );
