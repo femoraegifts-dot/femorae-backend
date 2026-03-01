@@ -21,28 +21,24 @@ router.get("/", async (req, res) => {
       `
       SELECT
         st.id,
-        v_id.field_value AS student_id,
-        v_name.field_value AS name,
         st.photo_status,
+        st.photo_drive_id,
         st.approved_status,
-        st.photo_drive_id
+        MAX(CASE WHEN sf.field_key = 'student_id' THEN sf.field_value END) AS student_id,
+        MAX(CASE WHEN sf.field_key = 'name' THEN sf.field_value END) AS name
       FROM students st
-      LEFT JOIN student_field_values v_id
-        ON v_id.student_id = st.id
-        AND v_id.field_key = 'student_id'
-      LEFT JOIN student_field_values v_name
-        ON v_name.student_id = st.id
-        AND v_name.field_key = 'name'
+      LEFT JOIN student_field_values sf
+        ON sf.student_id = st.id
       WHERE st.school_id = $1
         AND st.class_id = $2
         AND st.division_id = $3
         AND COALESCE(st.deleted_status, false) = false
-      ORDER BY v_id.field_value::int
+      GROUP BY st.id
+      ORDER BY student_id::int
       `,
       [school_id, class_id, division_id]
     );
 
-    console.log("STUDENTS RETURNED:", result.rows.length);
     res.json(result.rows);
 
   } catch (err) {
@@ -51,8 +47,9 @@ router.get("/", async (req, res) => {
   }
 });
 
+
 /* =====================================================
-   STUDENT VIEW (FIXED)
+   STUDENT VIEW (FULL DATA)
 ===================================================== */
 router.get("/view/:id", async (req, res) => {
   try {
@@ -63,15 +60,8 @@ router.get("/view/:id", async (req, res) => {
         st.photo_status,
         st.photo_drive_id,
         st.approved_status,
-        v_id.field_value AS student_id,
-        v_name.field_value AS name
+        st.approved_at
       FROM students st
-      LEFT JOIN student_field_values v_id
-        ON v_id.student_id = st.id
-        AND v_id.field_key = 'student_id'
-      LEFT JOIN student_field_values v_name
-        ON v_name.student_id = st.id
-        AND v_name.field_key = 'name'
       WHERE st.id = $1
       `,
       [req.params.id]
@@ -81,15 +71,13 @@ router.get("/view/:id", async (req, res) => {
       return res.status(404).json({ error: "Student not found" });
     }
 
-    const student = studentRes.rows[0];
-
     const fieldsRes = await db.query(
       `
       SELECT field_key, field_value
       FROM student_field_values
       WHERE student_id = $1
       `,
-      [student.id]
+      [req.params.id]
     );
 
     const fields = {};
@@ -98,12 +86,7 @@ router.get("/view/:id", async (req, res) => {
     });
 
     res.json({
-      id: student.id,
-      student_id: student.student_id,
-      name: student.name,
-      photo_status: student.photo_status,
-      photo_drive_id: student.photo_drive_id,
-      approved_status: student.approved_status,
+      ...studentRes.rows[0],
       fields: fields
     });
 
@@ -113,12 +96,11 @@ router.get("/view/:id", async (req, res) => {
   }
 });
 
+
 /* =====================================================
    APPROVE STUDENT
 ===================================================== */
 router.post("/:id/approve", async (req, res) => {
-  const id = req.params.id;
-
   try {
     const result = await db.query(
       `
@@ -127,7 +109,7 @@ router.post("/:id/approve", async (req, res) => {
           approved_at = NOW()
       WHERE id = $1
       `,
-      [id]
+      [req.params.id]
     );
 
     if (result.rowCount === 0) {
@@ -139,46 +121,6 @@ router.post("/:id/approve", async (req, res) => {
   } catch (err) {
     console.error("APPROVAL ERROR:", err);
     res.status(500).json({ error: "Approval failed" });
-  }
-});
-
-/* =====================================================
-   DELETE STUDENT (SOFT DELETE)
-===================================================== */
-router.post("/:id/delete", async (req, res) => {
-  const studentId = Number(req.params.id);
-  const { name, mobile, reason } = req.body;
-
-  if (!studentId || !name || !mobile || !reason) {
-    return res.status(400).json({
-      error: "Invalid delete request",
-    });
-  }
-
-  try {
-    const result = await db.query(
-      `
-      UPDATE students
-      SET
-        deleted_status = true,
-        deleted_at = NOW(),
-        deleted_by_name = $1,
-        deleted_by_mobile = $2,
-        deleted_reason = $3
-      WHERE id = $4
-      `,
-      [name, mobile, reason, studentId]
-    );
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: "Student not found" });
-    }
-
-    res.json({ success: true });
-
-  } catch (err) {
-    console.error("DELETE ERROR:", err);
-    res.status(500).json({ error: "Delete failed" });
   }
 });
 
