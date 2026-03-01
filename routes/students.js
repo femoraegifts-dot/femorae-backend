@@ -56,17 +56,13 @@ router.get("/", async (req, res) => {
 ===================================================== */
 router.get("/view/:id", async (req, res) => {
   try {
-    const result = await db.query(
+    const studentRes = await db.query(
       `
       SELECT
         st.id,
-        st.school_id,
-        st.class_id,
-        st.division_id,
         st.photo_status,
-        st.approved_at,
-        st.approved_status,
         st.photo_drive_id,
+        st.approved_status,
         v_id.field_value AS student_id,
         v_name.field_value AS name
       FROM students st
@@ -81,12 +77,34 @@ router.get("/view/:id", async (req, res) => {
       [req.params.id]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Student not found" });
+    if (studentRes.rows.length === 0) {
+      return res.status(404).json({ error: "Student not found" });
     }
 
+    const student = studentRes.rows[0];
+
+    const fieldsRes = await db.query(
+      `
+      SELECT field_key, field_value
+      FROM student_field_values
+      WHERE student_id = $1
+      `,
+      [student.id]
+    );
+
+    const fields = {};
+    fieldsRes.rows.forEach(row => {
+      fields[row.field_key] = row.field_value;
+    });
+
     res.json({
-      student: result.rows[0]
+      id: student.id,
+      student_id: student.student_id,
+      name: student.name,
+      photo_status: student.photo_status,
+      photo_drive_id: student.photo_drive_id,
+      approved_status: student.approved_status,
+      fields: fields
     });
 
   } catch (err) {
