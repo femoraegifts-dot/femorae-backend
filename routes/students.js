@@ -33,6 +33,7 @@ router.get("/", async (req, res) => {
         AND st.class_id = $2
         AND st.division_id = $3
         AND COALESCE(st.deleted_status, false) = false
+        AND deleted_at IS NULL
       GROUP BY st.id
       ORDER BY
         MAX(CASE WHEN sf.field_key = 'student_id' THEN sf.field_value END)
@@ -126,7 +127,7 @@ router.put("/approve/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-    await pool.query(
+    await db.query(
       `
       UPDATE students
       SET approved_status = 'approved',
@@ -139,7 +140,7 @@ router.put("/approve/:id", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to approve student" });
+    res.status(500).json({ error: "Approve failed" });
   }
 });
 
@@ -149,7 +150,7 @@ router.delete("/:id", async (req, res) => {
   const { name, role, mobile } = req.body;
 
   try {
-    await pool.query(
+    await db.query(
       `
       UPDATE students
       SET deleted_at = NOW(),
