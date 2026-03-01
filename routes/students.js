@@ -241,23 +241,21 @@ router.post("/:id/delete", async (req, res) => {
 /* =====================================================
    APPROVE STUDENT
 ===================================================== */
+/* =====================================================
+   APPROVE STUDENT
+===================================================== */
 router.post("/:id/approve", async (req, res) => {
-  const { approved_by, approved_role, approved_mobile } = req.body;
   const id = req.params.id;
-
-  if (!approved_by || !approved_role || !approved_mobile) {
-    return res.status(400).json({ error: "Approver details required" });
-  }
 
   try {
     const result = await db.query(
       `
       UPDATE students
-  SET approved_status = 'approved',
-      approved_at = NOW()
-  WHERE id = $1
+      SET approved_status = 'approved',
+          approved_at = NOW()
+      WHERE id = $1
       `,
-      [approved_by, approved_role, approved_mobile, id]
+      [id]
     );
 
     if (result.rowCount === 0) {
