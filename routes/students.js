@@ -58,13 +58,16 @@ router.get("/view/:id", async (req, res) => {
     const studentRes = await db.query(
       `
       SELECT
-        st.id,
-        st.photo_status,
-        st.photo_drive_id,
-        st.approved_status,
-        st.approved_at
-      FROM students st
-      WHERE st.id = $1
+  st.id,
+  st.school_id,
+  st.class_id,
+  st.division_id,
+  st.photo_status,
+  st.photo_drive_id,
+  st.approved_status,
+  st.approved_at
+FROM students st
+WHERE st.id = $1
       `,
       [req.params.id]
     );
