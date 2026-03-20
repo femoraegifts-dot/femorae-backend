@@ -58,16 +58,16 @@ router.get("/view/:id", async (req, res) => {
     const studentRes = await db.query(
       `
       SELECT
-  st.id,
-  st.school_id,
-  st.class_id,
-  st.division_id,
-  st.photo_status,
-  st.photo_drive_id,
-  st.approved_status,
-  st.approved_at
-FROM students st
-WHERE st.id = $1
+        st.id,
+        st.school_id,
+        st.class_id,
+        st.division_id,
+        st.photo_status,
+        st.photo_drive_id,
+        st.approved_status,
+        st.approved_at
+      FROM students st
+      WHERE st.id = $1
       `,
       [req.params.id]
     );
@@ -86,34 +86,34 @@ WHERE st.id = $1
     );
 
     const schemaRes = await db.query(
-  `
-  SELECT field_key, field_label, required
-  FROM school_student_schema
-  WHERE school_id = (
-    SELECT school_id FROM students WHERE id = $1
-  )
-  AND active = true
-  ORDER BY field_order
-  `,
-  [req.params.id]
-);
+      `
+      SELECT field_key, field_label, required
+      FROM school_student_schema
+      WHERE school_id = (
+        SELECT school_id FROM students WHERE id = $1
+      )
+      AND active = true
+      ORDER BY field_order
+      `,
+      [req.params.id]
+    );
 
-const valueMap = {};
-fieldsRes.rows.forEach(row => {
-  valueMap[row.field_key] = row.field_value;
-});
+    const valueMap = {};
+    fieldsRes.rows.forEach(row => {
+      valueMap[row.field_key] = row.field_value;
+    });
 
-const fields = schemaRes.rows.map(schemaField => ({
-  field_key: schemaField.field_key,
-  field_label: schemaField.field_label,
-  required: schemaField.required,
-  field_value: valueMap[schemaField.field_key] || ""
-}));
+    const fields = schemaRes.rows.map(schemaField => ({
+      field_key: schemaField.field_key,
+      field_label: schemaField.field_label,
+      required: schemaField.required,
+      field_value: valueMap[schemaField.field_key] || ""
+    }));
 
-res.json({
-  student: studentRes.rows[0],
-  fields: fields
-});
+    res.json({
+      student: studentRes.rows[0],
+      fields: fields
+    });
 
   } catch (err) {
     console.error("STUDENT VIEW ERROR:", err);
