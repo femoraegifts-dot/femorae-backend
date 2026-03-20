@@ -172,4 +172,30 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+/* =====================================================
+   FORM FIELDS (FOR ADD / EDIT)
+===================================================== */
+router.get("/form-fields/:school_id", async (req, res) => {
+  try {
+    const { school_id } = req.params;
+
+    const result = await db.query(
+      `
+      SELECT field_key, field_label, required
+      FROM school_student_schema
+      WHERE school_id = $1
+      AND active = true
+      ORDER BY field_order
+      `,
+      [school_id]
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error("FORM FIELDS ERROR:", err);
+    res.status(500).json({ error: "Failed to load form fields" });
+  }
+});
+
 module.exports = router;
