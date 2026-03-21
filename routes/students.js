@@ -280,4 +280,84 @@ router.get("/form-fields/:school_id", async (req, res) => {
   }
 });
 
+/* =====================================================
+   EXPORT STUDENTS TO EXCEL
+===================================================== */
+const ExcelJS = require("exceljs");
+
+router.get("/export/excel", async (req, res) => {
+  console.log("📌 EXPORT EXCEL HIT");
+  try {
+    const { school_id, class_id, division_id } = req.query;
+
+    const result = await db.query(
+      `
+      SELECT
+        st.id,
+        st.photo_status,
+        st.approved_status,
+        sf.field_key,
+        sf.field_value
+      FROM students st
+      LEFT JOIN student_field_values sf
+        ON sf.student_id = st.id
+      WHERE st.school_id = $1
+        AND st.class_id = $2
+        AND st.division_id = $3
+        AND st.deleted_at IS NULL
+      ORDER BY st.id
+      `,
+      [school_id, class_id, division_id]
+    );
+
+    // 🔥 Transform data
+    const studentsMap = {};
+
+    result.rows.forEach(row => {
+      if (!studentsMap[row.id]) {
+        studentsMap[row.id] = {
+          id: row.id,
+          photo_status: row.photo_status,
+          approved_status: row.approved_status,
+        };
+      }
+
+      studentsMap[row.id][row.field_key] = row.field_value;
+    });
+
+    const students = Object.values(studentsMap);
+
+    // 🔥 Create Excel
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Students");
+
+    // Headers
+    const headers = Object.keys(students[0] || {});
+    sheet.addRow(headers);
+
+    // Data
+    students.forEach(student => {
+      sheet.addRow(headers.map(h => student[h] || ""));
+    });
+
+    // Response
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=students.xlsx"
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+
+  } catch (err) {
+    console.error("EXPORT ERROR:", err);
+    res.status(500).json({ error: "Export failed" });
+  }
+});
+
 module.exports = router;

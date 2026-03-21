@@ -56,6 +56,7 @@ app.use("/admin", require("./routes/admin"));
 // School app APIs
 app.use("/auth", authRoutes);
 app.use("/students", studentRoutes);
+app.use("/students", require("./routes/students"));
 //app.use("/students-v2", studentV2Routes);
 app.use("/classes", sectionRoutes);
 app.use("/dashboard", dashboardRoutes);
