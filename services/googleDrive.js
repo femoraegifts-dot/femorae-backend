@@ -82,4 +82,4 @@ async function createOrGetFolder(name, parentId) {
   return folder.data.id;
 }
 
-module.exports = { uploadToDrive };
+module.exports = { uploadToDrive, drive };

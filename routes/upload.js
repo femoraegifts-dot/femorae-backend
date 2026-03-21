@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require("multer");
 const fs = require("fs");
 const db = require("../config/db");
-const { uploadToDrive } = require("../services/googleDrive");
+const { uploadToDrive, drive } = require("../services/googleDrive");
 
 const upload = multer({ dest: "uploads/" });
 
