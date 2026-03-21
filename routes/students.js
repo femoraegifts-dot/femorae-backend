@@ -281,7 +281,7 @@ router.get("/form-fields/:school_id", async (req, res) => {
 });
 
 /* =====================================================
-   EXPORT STUDENTS TO EXCEL
+   EXPORT STUDENTS TO EXCEL (FINAL VERSION 🔥)
 ===================================================== */
 const ExcelJS = require("exceljs");
 
@@ -289,10 +289,8 @@ router.get("/export/excel", async (req, res) => {
   console.log("📌 EXPORT EXCEL HIT");
 
   try {
-    // ✅ FIRST extract
     const { school_id, class_id, division_id } = req.query;
 
-    // ✅ THEN validate
     if (!school_id || !class_id || !division_id) {
       return res.status(400).send("Missing filters");
     }
@@ -303,35 +301,57 @@ router.get("/export/excel", async (req, res) => {
       division_id,
     });
 
+    /* =========================
+       1️⃣ GET STUDENT DATA
+    ========================= */
     const result = await db.query(
       `
       SELECT
         st.id,
         st.photo_status,
+        st.photo_drive_id,
         st.approved_status,
         sf.field_key,
         sf.field_value
       FROM students st
       LEFT JOIN student_field_values sf
         ON sf.student_id = st.id
-      WHERE st.deleted_at IS NULL
-        AND st.school_id = $1
+      WHERE st.school_id = $1
         AND st.class_id = $2
         AND st.division_id = $3
+        AND st.deleted_at IS NULL
       ORDER BY st.id
       `,
       [school_id, class_id, division_id]
     );
 
-    // 🔥 Transform data
+    /* =========================
+       2️⃣ GET DYNAMIC FIELDS
+    ========================= */
+    const schemaRes = await db.query(
+      `
+      SELECT field_key
+      FROM school_student_schema
+      WHERE school_id = $1
+        AND active = true
+      ORDER BY field_order
+      `,
+      [school_id]
+    );
+
+    const dynamicFields = schemaRes.rows.map(r => r.field_key);
+
+    /* =========================
+       3️⃣ TRANSFORM DATA
+    ========================= */
     const studentsMap = {};
 
     result.rows.forEach(row => {
       if (!studentsMap[row.id]) {
         studentsMap[row.id] = {
-          id: row.id,
           photo_status: row.photo_status,
           approved_status: row.approved_status,
+          photo_drive_id: row.photo_drive_id
         };
       }
 
@@ -340,20 +360,53 @@ router.get("/export/excel", async (req, res) => {
 
     const students = Object.values(studentsMap);
 
-    // 🔥 Create Excel
+    /* =========================
+       4️⃣ ADD PHOTO URL
+    ========================= */
+    students.forEach(student => {
+      if (student.photo_drive_id) {
+        student.photo_url = `https://res.cloudinary.com/dkqzwdhuo/image/upload/${student.photo_drive_id}`;
+      } else {
+        student.photo_url = "";
+      }
+    });
+
+    /* =========================
+       5️⃣ DEFINE HEADERS (DYNAMIC 🔥)
+    ========================= */
+    const headers = [
+      ...dynamicFields,
+      "photo_status",
+      "approved_status",
+      "photo_url"
+    ];
+
+    /* =========================
+       6️⃣ CREATE EXCEL
+    ========================= */
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Students");
 
-    // Headers
-    const headers = Object.keys(students[0] || {});
-    sheet.addRow(headers);
+    // Header row (formatted)
+    const headerRow = headers.map(h =>
+      h.replace(/_/g, " ").toUpperCase()
+    );
+    sheet.addRow(headerRow);
 
-    // Data
+    // Data rows
     students.forEach(student => {
       sheet.addRow(headers.map(h => student[h] || ""));
     });
 
-    // Response
+    // Styling
+    sheet.getRow(1).font = { bold: true };
+    sheet.columns.forEach(col => {
+      col.width = 20;
+    });
+
+    /* =========================
+       7️⃣ RESPONSE
+    ========================= */
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
