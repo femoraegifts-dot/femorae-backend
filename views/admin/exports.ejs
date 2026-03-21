@@ -1,3 +1,46 @@
+<h2>Export Students</h2>
+
+<form method="GET" action="/students/export/excel">
+
+  <!-- SCHOOL -->
+  <label>School:</label>
+  <select id="school" name="school_id" required>
+    <option value="">Select School</option>
+
+    <% if (schools && schools.length > 0) { %>
+      <% schools.forEach(s => { %>
+        <option value="<%= s.id %>"><%= s.name %></option>
+      <% }) %>
+    <% } else { %>
+      <option>No schools found</option>
+    <% } %>
+
+  </select>
+
+  <br/><br/>
+
+  <!-- CLASS -->
+  <label>Class:</label>
+  <select id="class" name="class_id" required>
+    <option value="">Select Class</option>
+  </select>
+
+  <br/><br/>
+
+  <!-- DIVISION -->
+  <label>Division:</label>
+  <select id="division" name="division_id" required>
+    <option value="">Select Division</option>
+  </select>
+
+  <br/><br/>
+
+  <button type="submit">
+    ⬇ Download Excel
+  </button>
+
+</form>
+
 <script>
 document.getElementById("school").addEventListener("change", async function () {
   const schoolId = this.value;
@@ -5,7 +48,7 @@ document.getElementById("school").addEventListener("change", async function () {
   const classDropdown = document.getElementById("class");
   const divisionDropdown = document.getElementById("division");
 
-  // Reset dropdowns
+  // Reset
   classDropdown.innerHTML = '<option value="">Select Class</option>';
   divisionDropdown.innerHTML = '<option value="">Select Division</option>';
 
@@ -15,10 +58,12 @@ document.getElementById("school").addEventListener("change", async function () {
     const res = await fetch(`/admin/api/classes/${schoolId}`);
     const data = await res.json();
 
+    console.log("Classes:", data);
+
     data.forEach(c => {
       const option = document.createElement("option");
-      option.value = c.id;               // ✅ ID
-      option.textContent = c.class_name; // ✅ Name
+      option.value = c.id;
+      option.textContent = c.class_name;
       classDropdown.appendChild(option);
     });
 
@@ -40,10 +85,12 @@ document.getElementById("class").addEventListener("change", async function () {
     const res = await fetch(`/admin/api/divisions/${classId}`);
     const data = await res.json();
 
+    console.log("Divisions:", data);
+
     data.forEach(d => {
       const option = document.createElement("option");
-      option.value = d.id;                   // ✅ ID
-      option.textContent = d.division_name;  // ✅ A/B/C
+      option.value = d.id;
+      option.textContent = d.division_name;
       divisionDropdown.appendChild(option);
     });
 
