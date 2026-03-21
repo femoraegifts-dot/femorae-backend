@@ -2,8 +2,9 @@
 
 <form method="GET" action="/students/export/excel">
 
+  <!-- SCHOOL -->
   <label>School:</label>
-  <select name="school_id" required>
+  <select id="school" name="school_id" required>
     <option value="">Select School</option>
     <% schools.forEach(s => { %>
       <option value="<%= s.id %>"><%= s.name %></option>
@@ -12,17 +13,19 @@
 
   <br/><br/>
 
-  <label>Class ID:</label>
-  <input type="number" name="class" required />
+  <!-- CLASS -->
+  <label>Class:</label>
+  <select id="class" name="class_id" required>
+    <option value="">Select Class</option>
+  </select>
 
   <br/><br/>
 
-  <label>Division ID:</label>
-  <select name="division_id" required>
-        <option value="">Select Division</option>
-        <option value="1">A</option>
-        <option value="2">B</option>
-</select>
+  <!-- DIVISION -->
+  <label>Division:</label>
+  <select id="division" name="division_id" required>
+    <option value="">Select Division</option>
+  </select>
 
   <br/><br/>
 
@@ -31,3 +34,33 @@
   </button>
 
 </form>
+
+<script>
+document.getElementById("school").addEventListener("change", async function () {
+  const schoolId = this.value;
+
+  const res = await fetch(`/admin/api/classes/${schoolId}`);
+  const data = await res.json();
+
+  const classDropdown = document.getElementById("class");
+  classDropdown.innerHTML = '<option value="">Select Class</option>';
+
+  data.forEach(c => {
+    classDropdown.innerHTML += `<option value="${c.id}">${c.class_name}</option>`;
+  });
+});
+
+document.getElementById("class").addEventListener("change", async function () {
+  const classId = this.value;
+
+  const res = await fetch(`/admin/api/divisions/${classId}`);
+  const data = await res.json();
+
+  const divisionDropdown = document.getElementById("division");
+  divisionDropdown.innerHTML = '<option value="">Select Division</option>';
+
+  data.forEach(d => {
+    divisionDropdown.innerHTML += `<option value="${d.id}">${d.division_name}</option>`;
+  });
+});
+</script>

@@ -287,8 +287,21 @@ const ExcelJS = require("exceljs");
 
 router.get("/export/excel", async (req, res) => {
   console.log("📌 EXPORT EXCEL HIT");
+
   try {
+    // ✅ FIRST extract
     const { school_id, class_id, division_id } = req.query;
+
+    // ✅ THEN validate
+    if (!school_id || !class_id || !division_id) {
+      return res.status(400).send("Missing filters");
+    }
+
+    console.log("EXPORT FILTER:", {
+      school_id,
+      class_id,
+      division_id,
+    });
 
     const result = await db.query(
       `
@@ -301,10 +314,10 @@ router.get("/export/excel", async (req, res) => {
       FROM students st
       LEFT JOIN student_field_values sf
         ON sf.student_id = st.id
-      WHERE st.school_id = $1
+      WHERE st.deleted_at IS NULL
+        AND st.school_id = $1
         AND st.class_id = $2
         AND st.division_id = $3
-        AND st.deleted_at IS NULL
       ORDER BY st.id
       `,
       [school_id, class_id, division_id]
