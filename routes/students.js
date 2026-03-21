@@ -32,8 +32,7 @@ router.get("/", async (req, res) => {
       WHERE st.school_id = $1
         AND st.class_id = $2
         AND st.division_id = $3
-        AND COALESCE(st.deleted_status, false) = false
-        AND deleted_at IS NULL
+        AND st.deleted_at IS NULL
       GROUP BY st.id
       ORDER BY
         MAX(CASE WHEN sf.field_key = 'student_id' THEN sf.field_value END)
@@ -123,9 +122,88 @@ router.get("/view/:id", async (req, res) => {
 
 
 /* =====================================================
+   UPDATE STUDENT (FIXED 🔥)
+===================================================== */
+router.put("/:id", async (req, res) => {
+  const { id } = req.params;
+  const { class_id, division_id, fields } = req.body;
+
+  const client = await db.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // 🔒 Prevent editing approved student
+    const check = await client.query(
+      `SELECT approved_status FROM students WHERE id = $1`,
+      [id]
+    );
+
+    if (check.rows[0]?.approved_status === "approved") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: "Approved student cannot be edited",
+      });
+    }
+
+    // 1️⃣ Update class & division
+    await client.query(
+      `
+      UPDATE students
+      SET class_id = $1,
+          division_id = $2
+      WHERE id = $3
+      `,
+      [class_id, division_id, id]
+    );
+
+    // 2️⃣ Update fields
+    for (const key in fields) {
+      const existing = await client.query(
+        `
+        SELECT id FROM student_field_values
+        WHERE student_id = $1 AND field_key = $2
+        `,
+        [id, key]
+      );
+
+      if (existing.rows.length > 0) {
+        await client.query(
+          `
+          UPDATE student_field_values
+          SET field_value = $1
+          WHERE student_id = $2 AND field_key = $3
+          `,
+          [fields[key], id, key]
+        );
+      } else {
+        await client.query(
+          `
+          INSERT INTO student_field_values (student_id, field_key, field_value)
+          VALUES ($1, $2, $3)
+          `,
+          [id, key, fields[key]]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+
+    res.json({ success: true });
+
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("UPDATE STUDENT ERROR:", err);
+    res.status(500).json({ error: "Update failed" });
+  } finally {
+    client.release();
+  }
+});
+
+
+/* =====================================================
    APPROVE STUDENT
 ===================================================== */
-// PUT /students/approve/:id
 router.put("/approve/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -142,12 +220,15 @@ router.put("/approve/:id", async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error("APPROVE ERROR:", err);
     res.status(500).json({ error: "Approve failed" });
   }
 });
 
-// DELETE /students/:id
+
+/* =====================================================
+   DELETE STUDENT (SOFT DELETE)
+===================================================== */
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
   const { name, role, mobile } = req.body;
@@ -167,13 +248,14 @@ router.delete("/:id", async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error("DELETE ERROR:", err);
     res.status(500).json({ error: "Delete failed" });
   }
 });
 
+
 /* =====================================================
-   FORM FIELDS (FOR ADD / EDIT)
+   FORM FIELDS
 ===================================================== */
 router.get("/form-fields/:school_id", async (req, res) => {
   try {
