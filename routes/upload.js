@@ -3,8 +3,11 @@ const router = express.Router();
 const multer = require("multer");
 const fs = require("fs");
 const db = require("../config/db");
+
+// ✅ Import BOTH upload + drive
 const { uploadToDrive, drive } = require("../services/googleDrive");
 
+// Multer config
 const upload = multer({ dest: "uploads/" });
 
 /* =====================================================
@@ -20,22 +23,21 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
       });
     }
 
-    /* =====================================================
-       1️⃣ FIND STUDENT (PostgreSQL style)
-    ===================================================== */
+    /* =========================
+       1️⃣ FIND STUDENT
+    ========================= */
     const result = await db.query(
       `
       SELECT
-        st.id                AS student_id,
-        s.name               AS school_name,
-        c.class_name         AS class_name,
-        d.division_name      AS division_name
+        st.id AS student_id,
+        s.name AS school_name,
+        c.class_name,
+        d.division_name
       FROM students st
-      JOIN schools s   ON s.id = st.school_id
-      JOIN classes c   ON c.id = st.class_id
+      JOIN schools s ON s.id = st.school_id
+      JOIN classes c ON c.id = st.class_id
       JOIN divisions d ON d.id = st.division_id
-      JOIN student_field_values v
-        ON v.student_id = st.id
+      JOIN student_field_values v ON v.student_id = st.id
       WHERE v.field_key = 'student_id'
         AND v.field_value = $1
       LIMIT 1
@@ -46,66 +48,47 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
     const student = result.rows[0];
 
     if (!student) {
-      fs.unlinkSync(req.file.path);
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
       return res.status(404).json({ error: "Student not found" });
     }
 
-    /* =====================================================
-   2️⃣ BUILD FILE INFO
-===================================================== */
-const fileName = `${studentCode}.jpg`;
+    const fileName = `${studentCode}.jpg`;
 
-const schoolName = student.school_name;
-const className = `Class ${student.class_name}`;
-const divisionName = student.division_name;
+    console.log("📤 Uploading file:", req.file.path);
+    console.log("📁 File exists:", fs.existsSync(req.file.path));
 
-/* 🔍 DEBUG */
-console.log("TEMP FILE PATH:", req.file.path);
-console.log("FILE EXISTS:", fs.existsSync(req.file.path));
+    /* =========================
+       2️⃣ GET OLD PHOTO ID
+    ========================= */
+    const oldPhotoRes = await db.query(
+      `SELECT photo_drive_id FROM students WHERE id = $1`,
+      [student.student_id]
+    );
 
-// 🔥 GET OLD PHOTO ID
-const oldPhotoRes = await db.query(
-  `SELECT photo_drive_id FROM students WHERE id = $1`,
-  [student.student_id]
-);
+    const oldPhotoId = oldPhotoRes.rows[0]?.photo_drive_id;
 
-const oldPhotoId = oldPhotoRes.rows[0]?.photo_drive_id;
-
-if (oldPhotoId) {
-  try {
-    await drive.files.delete({
-      fileId: oldPhotoId,
-    });
-    console.log("🗑 Old photo deleted from Drive:", oldPhotoId);
-  } catch (err) {
-    console.log("⚠️ Failed to delete old photo:", err.message);
-  }
-}
-
-    /* =====================================================
-       3️⃣ UPLOAD TO GOOGLE DRIVE
-    ===================================================== */
-
-    const { google } = require("googleapis");s
+    /* =========================
+       3️⃣ UPLOAD NEW PHOTO FIRST
+    ========================= */
     const driveResult = await uploadToDrive({
       filePath: req.file.path,
       fileName,
-      schoolName,
-      className,
-      divisionName,
+      schoolName: student.school_name,
+      className: `Class ${student.class_name}`,
+      divisionName: student.division_name,
     });
-    
+
     if (!driveResult || !driveResult.id) {
       throw new Error("Drive upload failed (no file ID)");
     }
 
-    console.log(
-      `☁️ Drive upload success → ${schoolName}/${className}/${divisionName}/${fileName}`
-    );
+    console.log("☁️ Upload success:", driveResult.id);
 
-    /* =====================================================
-       4️⃣ UPDATE STUDENT (PostgreSQL style)
-    ===================================================== */
+    /* =========================
+       4️⃣ UPDATE DATABASE
+    ========================= */
     await db.query(
       `
       UPDATE students
@@ -117,9 +100,23 @@ if (oldPhotoId) {
       [driveResult.id, student.student_id]
     );
 
-    /* =====================================================
-       5️⃣ CLEANUP TEMP FILE
-    ===================================================== */
+    /* =========================
+       5️⃣ DELETE OLD PHOTO (AFTER SUCCESS)
+    ========================= */
+    if (oldPhotoId) {
+      try {
+        await drive.files.delete({
+          fileId: oldPhotoId,
+        });
+        console.log("🗑 Old photo deleted:", oldPhotoId);
+      } catch (err) {
+        console.log("⚠️ Failed to delete old photo:", err.message);
+      }
+    }
+
+    /* =========================
+       6️⃣ CLEANUP TEMP FILE
+    ========================= */
     if (fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
@@ -130,7 +127,8 @@ if (oldPhotoId) {
     });
 
   } catch (err) {
-    console.error("❌ FULL Upload error:", JSON.stringify(err, null, 2));
+    console.error("❌ Upload error message:", err.message);
+    console.error("❌ Upload error full:", err);
 
     if (req.file?.path && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
