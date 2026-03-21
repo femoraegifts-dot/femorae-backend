@@ -58,11 +58,34 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
     console.log("📁 File exists:", fs.existsSync(req.file.path));
 
     /* =========================
-       2️⃣ UPLOAD TO CLOUDINARY
+       2️⃣ SANITIZE NAMES
+    ========================= */
+    const clean = (text) =>
+      text
+        ?.toString()
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, "_")
+        .replace(/[^a-z0-9_]/g, "") || "unknown";
+
+    const schoolName = clean(student.school_name);
+    const className = clean(student.class_name);
+    const divisionName = clean(student.division_name);
+
+    /* =========================
+       3️⃣ BUILD FOLDER PATH
+    ========================= */
+    const folderPath = `femorae/${schoolName}/${className}/${divisionName}`;
+
+    console.log("📁 Cloudinary folder:", folderPath);
+
+    /* =========================
+       4️⃣ UPLOAD TO CLOUDINARY
     ========================= */
     const cloudinaryResult = await uploadToCloudinary(
       req.file.path,
-      studentCode // 🔥 this ensures overwrite per student
+      studentCode,
+      folderPath
     );
 
     if (!cloudinaryResult || !cloudinaryResult.public_id) {
@@ -72,7 +95,7 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
     console.log("☁️ Cloudinary upload success:", cloudinaryResult.url);
 
     /* =========================
-       3️⃣ UPDATE DATABASE
+       5️⃣ UPDATE DATABASE
     ========================= */
     await db.query(
       `
@@ -86,7 +109,7 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
     );
 
     /* =========================
-       4️⃣ CLEANUP TEMP FILE
+       6️⃣ CLEANUP TEMP FILE
     ========================= */
     if (fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
