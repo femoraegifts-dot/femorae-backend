@@ -1,66 +1,54 @@
-<h2>Export Students</h2>
-
-<form method="GET" action="/students/export/excel">
-
-  <!-- SCHOOL -->
-  <label>School:</label>
-  <select id="school" name="school_id" required>
-    <option value="">Select School</option>
-    <% schools.forEach(s => { %>
-      <option value="<%= s.id %>"><%= s.name %></option>
-    <% }) %>
-  </select>
-
-  <br/><br/>
-
-  <!-- CLASS -->
-  <label>Class:</label>
-  <select id="class" name="class_id" required>
-    <option value="">Select Class</option>
-  </select>
-
-  <br/><br/>
-
-  <!-- DIVISION -->
-  <label>Division:</label>
-  <select id="division" name="division_id" required>
-    <option value="">Select Division</option>
-  </select>
-
-  <br/><br/>
-
-  <button type="submit">
-    ⬇ Download Excel
-  </button>
-
-</form>
-
 <script>
 document.getElementById("school").addEventListener("change", async function () {
   const schoolId = this.value;
 
-  const res = await fetch(`/admin/api/classes/${schoolId}`);
-  const data = await res.json();
-
   const classDropdown = document.getElementById("class");
-  classDropdown.innerHTML = '<option value="">Select Class</option>';
+  const divisionDropdown = document.getElementById("division");
 
-  data.forEach(c => {
-    classDropdown.innerHTML += `<option value="${c.id}">${c.class_name}</option>`;
-  });
+  // Reset dropdowns
+  classDropdown.innerHTML = '<option value="">Select Class</option>';
+  divisionDropdown.innerHTML = '<option value="">Select Division</option>';
+
+  if (!schoolId) return;
+
+  try {
+    const res = await fetch(`/admin/api/classes/${schoolId}`);
+    const data = await res.json();
+
+    data.forEach(c => {
+      const option = document.createElement("option");
+      option.value = c.id;               // ✅ ID
+      option.textContent = c.class_name; // ✅ Name
+      classDropdown.appendChild(option);
+    });
+
+  } catch (err) {
+    console.error("Class load error:", err);
+  }
 });
+
 
 document.getElementById("class").addEventListener("change", async function () {
   const classId = this.value;
 
-  const res = await fetch(`/admin/api/divisions/${classId}`);
-  const data = await res.json();
-
   const divisionDropdown = document.getElementById("division");
   divisionDropdown.innerHTML = '<option value="">Select Division</option>';
 
-  data.forEach(d => {
-    divisionDropdown.innerHTML += `<option value="${d.id}">${d.division_name}</option>`;
-  });
+  if (!classId) return;
+
+  try {
+    const res = await fetch(`/admin/api/divisions/${classId}`);
+    const data = await res.json();
+
+    data.forEach(d => {
+      const option = document.createElement("option");
+      option.value = d.id;                   // ✅ ID
+      option.textContent = d.division_name;  // ✅ A/B/C
+      divisionDropdown.appendChild(option);
+    });
+
+  } catch (err) {
+    console.error("Division load error:", err);
+  }
 });
 </script>
