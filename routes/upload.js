@@ -78,6 +78,7 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
     const folderPath = `femorae/${schoolName}/${className}/${divisionName}`;
 
     console.log("📁 Cloudinary folder:", folderPath);
+    console.log("📁 FINAL FOLDER PATH:", folderPath);
 
     /* =========================
        4️⃣ UPLOAD TO CLOUDINARY

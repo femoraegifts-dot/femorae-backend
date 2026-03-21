@@ -6,11 +6,11 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const uploadToCloudinary = async (filePath, studentCode) => {
+const uploadToCloudinary = async (filePath, studentCode, folderPath) => {
   try {
     const result = await cloudinary.uploader.upload(filePath, {
-      folder: "femorae/students",
-      public_id: studentCode, // 🔥 overwrite same student
+      folder: folderPath, // ✅ dynamic
+      public_id: studentCode,
       overwrite: true,
     });
 
