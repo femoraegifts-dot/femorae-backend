@@ -27,22 +27,16 @@ router.post("/students", upload.single("file"), async (req, res) => {
     if (ext === "csv") {
       fs.createReadStream(filePath)
         .pipe(csv())
-        .on("data", (row) => students.push(row))   // ✅ FIXED
+        .on("data", (row) => students.push(row))
         .on("end", async () => {
           try {
             const inserted = await insertStudents(students, school_id);
             fs.unlinkSync(filePath);
 
-            return res.json({
-              success: true,
-              inserted,
-            });
-
+            return res.json({ success: true, inserted });
           } catch (err) {
             fs.unlinkSync(filePath);
-            return res.status(500).json({
-              error: err.message,
-            });
+            return res.status(500).json({ error: err.message });
           }
         });
     }
@@ -56,10 +50,7 @@ router.post("/students", upload.single("file"), async (req, res) => {
       const inserted = await insertStudents(students, school_id);
       fs.unlinkSync(filePath);
 
-      return res.json({
-        success: true,
-        inserted,
-      });
+      return res.json({ success: true, inserted });
     }
 
     else {
@@ -75,7 +66,7 @@ router.post("/students", upload.single("file"), async (req, res) => {
 
 
 // ======================================================
-// INSERT STUDENTS FUNCTION
+// INSERT STUDENTS FUNCTION (FINAL VERSION 🔥)
 // ======================================================
 
 async function insertStudents(rows, school_id) {
@@ -84,7 +75,7 @@ async function insertStudents(rows, school_id) {
 
   for (const originalRow of rows) {
 
-    // Normalize headers (case insensitive)
+    // 🔥 Normalize headers
     const r = {};
     for (const key of Object.keys(originalRow)) {
       r[key.trim().toLowerCase()] = originalRow[key];
@@ -95,35 +86,65 @@ async function insertStudents(rows, school_id) {
     try {
       await client.query("BEGIN");
 
-      // ===== Get Class =====
-      const classRes = await client.query(
+      /* =========================
+         1️⃣ GET OR CREATE CLASS
+      ========================= */
+      const className = r.class?.toString().trim();
+
+      let classRes = await client.query(
         `SELECT id FROM classes
          WHERE school_id = $1
          AND LOWER(class_name) = LOWER($2)`,
-        [school_id, r.class]
+        [school_id, className]
       );
 
-      if (classRes.rows.length === 0) {
-        throw new Error(`Class not found: ${r.class}`);
+      let class_id;
+
+      if (classRes.rows.length > 0) {
+        class_id = classRes.rows[0].id;
+      } else {
+        const insertClass = await client.query(
+          `INSERT INTO classes (class_name, school_id)
+           VALUES ($1, $2)
+           RETURNING id`,
+          [className, school_id]
+        );
+
+        class_id = insertClass.rows[0].id;
+        console.log("✅ New class created:", className);
       }
 
-      const class_id = classRes.rows[0].id;
+      /* =========================
+         2️⃣ GET OR CREATE DIVISION
+      ========================= */
+      const divisionName = r.division?.toString().trim();
 
-      // ===== Get Division =====
-      const divisionRes = await client.query(
+      let divisionRes = await client.query(
         `SELECT id FROM divisions
          WHERE class_id = $1
          AND LOWER(division_name) = LOWER($2)`,
-        [class_id, r.division]
+        [class_id, divisionName]
       );
 
-      if (divisionRes.rows.length === 0) {
-        throw new Error(`Division not found: ${r.division}`);
+      let division_id;
+
+      if (divisionRes.rows.length > 0) {
+        division_id = divisionRes.rows[0].id;
+      } else {
+        const insertDivision = await client.query(
+          `INSERT INTO divisions (division_name, class_id)
+           VALUES ($1, $2)
+           RETURNING id`,
+          [divisionName, class_id]
+        );
+
+        division_id = insertDivision.rows[0].id;
+        console.log("✅ New division created:", divisionName);
       }
 
-      const division_id = divisionRes.rows[0].id;
-
-      // ===== Insert student =====
+      /* =========================
+         3️⃣ INSERT STUDENT
+      ========================= */
       const studentInsert = await client.query(
         `INSERT INTO students (school_id, class_id, division_id)
          VALUES ($1, $2, $3)
@@ -133,16 +154,34 @@ async function insertStudents(rows, school_id) {
 
       const studentDbId = studentInsert.rows[0].id;
 
-      // ===== Insert dynamic fields =====
+      /* =========================
+         4️⃣ INSERT DYNAMIC FIELDS
+      ========================= */
       for (const key of Object.keys(r)) {
 
         if (key === "class" || key === "division") continue;
 
+        const value = r[key];
+
+        // 🔥 Create schema if not exists
         await client.query(
-          `INSERT INTO student_field_values
-           (student_id, field_key, field_value)
-           VALUES ($1, $2, $3)`,
-          [studentDbId, key, r[key]]
+          `
+          INSERT INTO school_student_schema
+          (school_id, field_key, field_label, active)
+          VALUES ($1, $2, $3, true)
+          ON CONFLICT DO NOTHING
+          `,
+          [school_id, key, key]
+        );
+
+        // 🔥 Insert value
+        await client.query(
+          `
+          INSERT INTO student_field_values
+          (student_id, field_key, field_value)
+          VALUES ($1, $2, $3)
+          `,
+          [studentDbId, key, value]
         );
       }
 
@@ -151,7 +190,7 @@ async function insertStudents(rows, school_id) {
 
     } catch (err) {
       await client.query("ROLLBACK");
-      console.error("Import error:", err.message);
+      console.error("❌ Import error:", err.message);
     } finally {
       client.release();
     }
