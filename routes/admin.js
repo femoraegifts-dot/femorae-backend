@@ -173,6 +173,44 @@ router.get("/students/import", requireAdmin, async (req, res) => {
  *  EXPORT PAGE (UI)
  * ============================================
  */
+router.get("/api/classes/:school_id", async (req, res) => {
+  try {
+    const result = await db.query(
+      `
+      SELECT id, class_name
+      FROM classes
+      WHERE school_id = $1
+      ORDER BY class_name
+      `,
+      [req.params.school_id]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load classes" });
+  }
+});
+
+router.get("/api/divisions/:class_id", async (req, res) => {
+  try {
+    const result = await db.query(
+      `
+      SELECT id, division_name
+      FROM divisions
+      WHERE class_id = $1
+      ORDER BY division_name
+      `,
+      [req.params.class_id]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load divisions" });
+  }
+});
+
 router.get("/exports", requireAdmin, async (req, res) => {
   console.log("📌 /admin/exports HIT");
 
