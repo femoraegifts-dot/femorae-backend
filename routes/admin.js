@@ -170,7 +170,25 @@ router.get("/students/import", requireAdmin, async (req, res) => {
 
 /**
  * ============================================
- *  EXPORT ROUTER
+ *  EXPORT PAGE (UI)
  * ============================================
  */
+router.get("/exports", requireAdmin, async (req, res) => {
+  console.log("📌 /admin/exports HIT");
+
+  try {
+    const schools = await db.query(
+      "SELECT id, name FROM schools ORDER BY name"
+    );
+
+    res.render("admin/exports", {
+      schools: schools.rows,
+    });
+
+  } catch (err) {
+    console.error("EXPORT PAGE ERROR:", err);
+    res.status(500).send("Server error");
+  }
+});
+
 module.exports = router;

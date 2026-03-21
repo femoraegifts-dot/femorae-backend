@@ -51,6 +51,7 @@ const importRoutes = require("./routes/import");
 
 // Admin (web)
 app.use("/admin", adminRoutes);
+app.use("/admin", require("./routes/admin"));
 
 // School app APIs
 app.use("/auth", authRoutes);
