@@ -63,9 +63,30 @@ const divisionName = student.division_name;
 console.log("TEMP FILE PATH:", req.file.path);
 console.log("FILE EXISTS:", fs.existsSync(req.file.path));
 
+// 🔥 GET OLD PHOTO ID
+const oldPhotoRes = await db.query(
+  `SELECT photo_drive_id FROM students WHERE id = $1`,
+  [student.student_id]
+);
+
+const oldPhotoId = oldPhotoRes.rows[0]?.photo_drive_id;
+
+if (oldPhotoId) {
+  try {
+    await drive.files.delete({
+      fileId: oldPhotoId,
+    });
+    console.log("🗑 Old photo deleted from Drive:", oldPhotoId);
+  } catch (err) {
+    console.log("⚠️ Failed to delete old photo:", err.message);
+  }
+}
+
     /* =====================================================
        3️⃣ UPLOAD TO GOOGLE DRIVE
     ===================================================== */
+
+    const { google } = require("googleapis");s
     const driveResult = await uploadToDrive({
       filePath: req.file.path,
       fileName,
