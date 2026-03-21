@@ -4,8 +4,8 @@ const multer = require("multer");
 const fs = require("fs");
 const db = require("../config/db");
 
-// ✅ Import BOTH upload + drive
-const { uploadToDrive, drive } = require("../services/googleDrive");
+// ✅ Cloudinary upload
+const { uploadToCloudinary } = require("../services/cloudinary");
 
 // Multer config
 const upload = multer({ dest: "uploads/" });
@@ -54,40 +54,25 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
       return res.status(404).json({ error: "Student not found" });
     }
 
-    const fileName = `${studentCode}.jpg`;
-
     console.log("📤 Uploading file:", req.file.path);
     console.log("📁 File exists:", fs.existsSync(req.file.path));
 
     /* =========================
-       2️⃣ GET OLD PHOTO ID
+       2️⃣ UPLOAD TO CLOUDINARY
     ========================= */
-    const oldPhotoRes = await db.query(
-      `SELECT photo_drive_id FROM students WHERE id = $1`,
-      [student.student_id]
+    const cloudinaryResult = await uploadToCloudinary(
+      req.file.path,
+      studentCode // 🔥 this ensures overwrite per student
     );
 
-    const oldPhotoId = oldPhotoRes.rows[0]?.photo_drive_id;
-
-    /* =========================
-       3️⃣ UPLOAD NEW PHOTO FIRST
-    ========================= */
-    const driveResult = await uploadToDrive({
-      filePath: req.file.path,
-      fileName,
-      schoolName: student.school_name,
-      className: `Class ${student.class_name}`,
-      divisionName: student.division_name,
-    });
-
-    if (!driveResult || !driveResult.id) {
-      throw new Error("Drive upload failed (no file ID)");
+    if (!cloudinaryResult || !cloudinaryResult.public_id) {
+      throw new Error("Cloudinary upload failed");
     }
 
-    console.log("☁️ Upload success:", driveResult.id);
+    console.log("☁️ Cloudinary upload success:", cloudinaryResult.url);
 
     /* =========================
-       4️⃣ UPDATE DATABASE
+       3️⃣ UPDATE DATABASE
     ========================= */
     await db.query(
       `
@@ -97,25 +82,11 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
         photo_drive_id = $1
       WHERE id = $2
       `,
-      [driveResult.id, student.student_id]
+      [cloudinaryResult.public_id, student.student_id]
     );
 
     /* =========================
-       5️⃣ DELETE OLD PHOTO (AFTER SUCCESS)
-    ========================= */
-    if (oldPhotoId) {
-      try {
-        await drive.files.delete({
-          fileId: oldPhotoId,
-        });
-        console.log("🗑 Old photo deleted:", oldPhotoId);
-      } catch (err) {
-        console.log("⚠️ Failed to delete old photo:", err.message);
-      }
-    }
-
-    /* =========================
-       6️⃣ CLEANUP TEMP FILE
+       4️⃣ CLEANUP TEMP FILE
     ========================= */
     if (fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
@@ -123,7 +94,8 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
 
     return res.json({
       success: true,
-      drive_file_id: driveResult.id,
+      image_url: cloudinaryResult.url,
+      public_id: cloudinaryResult.public_id,
     });
 
   } catch (err) {
