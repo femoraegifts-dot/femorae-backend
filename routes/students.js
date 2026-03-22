@@ -54,22 +54,21 @@ router.get("/", async (req, res) => {
 ===================================================== */
 router.get("/view/:id", async (req, res) => {
   try {
-    const studentRes = await db.query(
-      `
-      SELECT
-        st.id,
-        st.school_id,
-        st.class_id,
-        st.division_id,
-        st.photo_status,
-        st.photo_drive_id,
-        st.approved_status,
-        st.approved_at
-      FROM students st
-      WHERE st.id = $1
-      `,
-      [req.params.id]
-    );
+    const studentRes = await db.query(`
+  SELECT
+    st.id,
+    st.school_id,
+    st.class_id,
+    st.division_id,
+    st.photo_status,
+    st.photo_drive_id,
+    st.approved_status,
+    st.approved_at,
+    s.name AS school_name   -- ✅ ADD THIS LINE
+  FROM students st
+  JOIN schools s ON s.id = st.school_id   -- ✅ ADD THIS JOIN
+  WHERE st.id = $1
+`, [req.params.id]);
 
     if (studentRes.rows.length === 0) {
       return res.status(404).json({ error: "Student not found" });
@@ -338,8 +337,11 @@ router.get("/export/excel", async (req, res) => {
       `,
       [school_id]
     );
+    
 
     const dynamicFields = schemaRes.rows.map(r => r.field_key);
+
+    
 
     /* =========================
        3️⃣ TRANSFORM DATA
