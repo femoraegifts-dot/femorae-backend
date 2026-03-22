@@ -56,18 +56,22 @@ router.get("/view/:id", async (req, res) => {
   try {
     const studentRes = await db.query(`
   SELECT
-    st.id,
-    st.school_id,
-    st.class_id,
-    st.division_id,
-    st.photo_status,
-    st.photo_drive_id,
-    st.approved_status,
-    st.approved_at,
-    s.name AS school_name   -- ✅ ADD THIS LINE
-  FROM students st
-  JOIN schools s ON s.id = st.school_id   -- ✅ ADD THIS JOIN
-  WHERE st.id = $1
+  st.id,
+  st.school_id,
+  st.class_id,
+  st.division_id,
+  st.photo_status,
+  st.photo_drive_id,
+  st.approved_status,
+  st.approved_at,
+  s.name AS school_name,
+  c.class_name,           -- ✅ ADD
+  d.division_name         -- ✅ ADD
+FROM students st
+JOIN schools s ON s.id = st.school_id
+JOIN classes c ON c.id = st.class_id       -- ✅ ADD
+JOIN divisions d ON d.id = st.division_id  -- ✅ ADD
+WHERE st.id = $1
 `, [req.params.id]);
 
     if (studentRes.rows.length === 0) {
