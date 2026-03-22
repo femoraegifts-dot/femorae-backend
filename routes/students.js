@@ -426,4 +426,85 @@ router.get("/export/excel", async (req, res) => {
   }
 });
 
+router.get("/public/:id", async (req, res) => {
+  try {
+    const studentRes = await db.query(
+      `
+      SELECT *
+      FROM students
+      WHERE id = $1
+      `,
+      [req.params.id]
+    );
+
+    if (studentRes.rows.length === 0) {
+      return res.send("Student not found");
+    }
+
+    const fieldsRes = await db.query(
+      `
+      SELECT field_key, field_value
+      FROM student_field_values
+      WHERE student_id = $1
+      `,
+      [req.params.id]
+    );
+
+    const fields = {};
+    fieldsRes.rows.forEach(row => {
+      fields[row.field_key] = row.field_value;
+    });
+
+    const photoId = studentRes.rows[0].photo_drive_id;
+
+    const photoUrl = photoId
+      ? `https://res.cloudinary.com/dkqzwdhuo/image/upload/${photoId}`
+      : "";
+
+    /// 🔥 SIMPLE HTML ID CARD
+    res.send(`
+      <html>
+      <head>
+        <title>ID Card</title>
+        <style>
+          body {
+            font-family: Arial;
+            display: flex;
+            justify-content: center;
+            margin-top: 50px;
+          }
+          .card {
+            width: 300px;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 10px #ccc;
+          }
+          img {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h3>SCHOOL NAME</h3>
+          <img src="${photoUrl}" />
+          <h4>${fields.name || ""}</h4>
+          <p>ID: ${fields.student_id || ""}</p>
+          <hr/>
+          ${Object.keys(fields).map(k =>
+            `<p><b>${k}</b>: ${fields[k]}</p>`
+          ).join("")}
+        </div>
+      </body>
+      </html>
+    `);
+
+  } catch (err) {
+    console.error(err);
+    res.send("Error loading student");
+  }
+});
+
 module.exports = router;
