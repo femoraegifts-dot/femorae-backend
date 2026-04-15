@@ -1,0 +1,67 @@
+/* ===== GLOBAL ===== */
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #f5f6fa;
+}
+
+/* ===== LAYOUT ===== */
+.container {
+  display: flex;
+}
+
+.sidebar {
+  width: 220px;
+  background: #2f3640;
+  color: white;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.sidebar a {
+  display: block;
+  color: #dcdde1;
+  text-decoration: none;
+  margin: 10px 0;
+}
+
+.sidebar a:hover {
+  color: #00a8ff;
+}
+
+.content {
+  flex: 1;
+  padding: 30px;
+  background: white;
+}
+
+/* ===== FORM ===== */
+label {
+  font-weight: bold;
+}
+
+select, input {
+  padding: 8px;
+  width: 250px;
+  margin-top: 5px;
+  margin-bottom: 15px;
+}
+
+/* ===== BUTTON ===== */
+button {
+  background: #0984e3;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+button:hover {
+  background: #74b9ff;
+}
+
+/* ===== TITLE ===== */
+h2 {
+  margin-bottom: 20px;
+}
