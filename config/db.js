@@ -2,17 +2,9 @@ const { Pool } = require("pg");
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-
-  // ✅ Always use SSL for Render / cloud DB
-  ssl: {
-    rejectUnauthorized: false,
-  },
-
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  ssl: { rejectUnauthorized: false },
 });
 
-// 🔥 Debug logs
 pool.on("connect", () => {
   console.log("✅ DB Connected");
 });
