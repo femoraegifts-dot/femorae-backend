@@ -97,7 +97,7 @@ WHERE st.id = $1
       AND active = true
       ORDER BY field_order
       `,
-      [req.params.id]§
+      [req.params.id]
     );
 
     const valueMap = {};
