@@ -7,46 +7,36 @@
   /* =====================================================
     GET STUDENT LIST
   ===================================================== */
-  router.get("/", async (req, res) => {
-    try {
-      const { school_id, class_id, division_id } = req.query;
+  router.get("/view/:id", async (req, res) => {
+  try {
+    console.log("VIEW ID =", req.params.id);
 
-      if (!school_id || !class_id || !division_id) {
-        return res.status(400).json({
-          error: "school_id, class_id, division_id required",
-        });
-      }
+    const studentRes = await db.query(
+      `SELECT * FROM students WHERE id = $1`,
+      [req.params.id]
+    );
 
-      const result = await db.query(
-        `
-        SELECT
-          st.id,
-          st.photo_status,
-          st.photo_drive_id,
-          st.approved_status,
-          MAX(CASE WHEN sf.field_key = 'student_id' THEN sf.field_value END) AS student_id,
-          MAX(CASE WHEN sf.field_key = 'name' THEN sf.field_value END) AS name
-        FROM students st
-        LEFT JOIN student_field_values sf
-          ON sf.student_id = st.id
-        WHERE st.school_id = $1
-          AND st.class_id = $2
-          AND st.division_id = $3
-          AND st.deleted_at IS NULL
-        GROUP BY st.id
-        ORDER BY
-          MAX(CASE WHEN sf.field_key = 'student_id' THEN sf.field_value END)
-        `,
-        [school_id, class_id, division_id]
-      );
-
-      res.json(result.rows);
-
-    } catch (err) {
-      console.error("STUDENT LIST ERROR:", err);
-      res.status(500).json({ error: "Failed to load students" });
+    if (studentRes.rows.length === 0) {
+      return res.status(404).json({ error: "Student not found" });
     }
-  });
+
+    const fieldsRes = await db.query(
+      `SELECT field_key, field_value
+       FROM student_field_values
+       WHERE student_id = $1`,
+      [req.params.id]
+    );
+
+    res.json({
+      student: studentRes.rows[0],
+      fields: fieldsRes.rows
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed" });
+  }
+});
 
 
   /* =====================================================
@@ -513,4 +503,4 @@ WHERE st.id = $1
     }
   });
 
-  module.exports = router;
+  module.exports = router; 
