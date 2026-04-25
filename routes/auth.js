@@ -3,7 +3,19 @@ const router = express.Router();
 const db = require("../config/db");
 
 /**
- * SCHOOL LOGIN (PostgreSQL Version)
+ * Safe query with retry once
+ */
+async function safeQuery(sql, params) {
+  try {
+    return await db.query(sql, params);
+  } catch (err) {
+    console.log("⚠️ First DB query failed, retrying once...");
+    return await db.query(sql, params);
+  }
+}
+
+/**
+ * SCHOOL LOGIN
  */
 router.post("/login", async (req, res) => {
   try {
@@ -15,21 +27,23 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // PostgreSQL uses $1 instead of ?
-    const result = await db.query(
+    const result = await safeQuery(
       "SELECT id, name, username, password FROM schools WHERE username = $1",
       [username]
     );
 
     if (result.rows.length === 0) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({
+        message: "Invalid credentials",
+      });
     }
 
     const school = result.rows[0];
 
-    // Plain text check (we secure later)
     if (school.password !== password) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({
+        message: "Invalid credentials",
+      });
     }
 
     return res.json({
@@ -43,10 +57,10 @@ router.post("/login", async (req, res) => {
 
   } catch (err) {
     console.error("AUTH LOGIN ERROR:", err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({
+      message: "Server error",
+    });
   }
 });
-
-
 
 module.exports = router;
