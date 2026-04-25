@@ -27,7 +27,7 @@ router.get("/by-school/:schoolId", async (req, res) => {
   JOIN classes c ON c.id = s.class_id
   JOIN divisions d ON d.id = s.division_id
   WHERE s.school_id = $1
-    AND s.deleted_status = false
+    AND s.deleted_at IS NULL
   GROUP BY s.class_id, c.class_name, s.division_id, d.division_name
   ORDER BY c.class_name, d.division_name
   `,
