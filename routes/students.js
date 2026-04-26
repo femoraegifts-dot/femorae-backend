@@ -7,44 +7,51 @@
   /* =====================================================
    GET STUDENT LIST
 ===================================================== */
-router.get("/", async (req, res) => {
+router.get("/view/:id", async (req, res) => {
   try {
-    const { school_id, class_id, division_id } = req.query;
+    const studentRes = await db.query(`
+      SELECT
+        st.*,
+        s.name AS school_name,
+        c.class_name,
+        d.division_name
+      FROM students st
+      LEFT JOIN schools s ON s.id = st.school_id
+      LEFT JOIN classes c ON c.id = st.class_id
+      LEFT JOIN divisions d ON d.id = st.division_id
+      WHERE st.id = $1
+    `, [req.params.id]);
 
-    if (!school_id || !class_id || !division_id) {
-      return res.status(400).json({
-        error: "school_id, class_id, division_id required",
+    if (studentRes.rows.length === 0) {
+      return res.status(404).json({
+        error: "Student not found"
       });
     }
 
-    const result = await db.query(
-      `
-      SELECT
-        st.id,
-        st.photo_status,
-        st.photo_drive_id,
-        st.approved_status,
-        MAX(CASE WHEN sf.field_key = 'student_id' THEN sf.field_value END) AS student_id,
-        MAX(CASE WHEN sf.field_key = 'name' THEN sf.field_value END) AS name
-      FROM students st
-      LEFT JOIN student_field_values sf
-        ON sf.student_id = st.id
-      WHERE st.school_id = $1
-        AND st.class_id = $2
-        AND st.division_id = $3
-        AND st.deleted_at IS NULL
-      GROUP BY st.id
-      ORDER BY
-        MAX(CASE WHEN sf.field_key = 'student_id' THEN sf.field_value END)
-      `,
-      [school_id, class_id, division_id]
-    );
+    const fieldsRes = await db.query(`
+      SELECT DISTINCT ON (field_key)
+        field_key,
+        field_value
+      FROM student_field_values
+      WHERE student_id = $1
+      ORDER BY field_key, id DESC
+    `, [req.params.id]);
 
-    res.json(result.rows);
+    const fields = fieldsRes.rows.map(row => ({
+      field_key: row.field_key,
+      field_label: row.field_key,
+      required: false,
+      field_value: row.field_value
+    }));
+
+    res.json({
+      student: studentRes.rows[0],
+      fields
+    });
 
   } catch (err) {
-    console.error("STUDENT LIST ERROR:", err);
-    res.status(500).json({ error: "Failed to load students" });
+    console.error("STUDENT VIEW ERROR:", err);
+    res.status(500).json({ error: "Failed" });
   }
 });
 
