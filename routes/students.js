@@ -121,6 +121,68 @@ router.get("/view/:id", async (req, res) => {
 });
 
 /* =====================================================
+   UPDATE STUDENT
+   PUT /students/:id
+===================================================== */
+router.put("/:id", async (req, res) => {
+  try {
+    const studentId = req.params.id;
+    const { fields } = req.body;
+
+    if (!fields || typeof fields !== "object") {
+      return res.status(400).json({
+        error: "Invalid fields payload",
+      });
+    }
+
+    for (const key of Object.keys(fields)) {
+      const value = fields[key];
+
+      const check = await db.query(
+        `
+        SELECT id
+        FROM student_field_values
+        WHERE student_id = $1
+          AND field_key = $2
+        LIMIT 1
+        `,
+        [studentId, key]
+      );
+
+      if (check.rows.length > 0) {
+        await db.query(
+          `
+          UPDATE student_field_values
+          SET field_value = $1
+          WHERE student_id = $2
+            AND field_key = $3
+          `,
+          [value, studentId, key]
+        );
+      } else {
+        await db.query(
+          `
+          INSERT INTO student_field_values
+          (student_id, field_key, field_value)
+          VALUES ($1, $2, $3)
+          `,
+          [studentId, key, value]
+        );
+      }
+    }
+
+    res.json({
+      success: true,
+    });
+  } catch (err) {
+    console.error("UPDATE ERROR:", err);
+    res.status(500).json({
+      error: "Failed to update student",
+    });
+  }
+});
+
+/* =====================================================
    APPROVE STUDENT
 ===================================================== */
 router.put("/approve/:id", async (req, res) => {
