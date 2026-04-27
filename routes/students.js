@@ -1,6 +1,6 @@
 // ===============================
 // routes/students.js
-// PRODUCTION CLEAN VERSION
+// FINAL V2 PRODUCTION VERSION
 // ===============================
 
 console.log("✅ STUDENTS ROUTE FILE LOADED");
@@ -12,7 +12,6 @@ const ExcelJS = require("exceljs");
 
 /* =====================================================
    GET STUDENT LIST
-   /students?school_id=2&class_id=3&division_id=7
 ===================================================== */
 router.get("/", async (req, res) => {
   try {
@@ -58,12 +57,9 @@ router.get("/", async (req, res) => {
 
 /* =====================================================
    GET FORM FIELDS
-   /students/form-fields/2
 ===================================================== */
 router.get("/form-fields/:schoolId", async (req, res) => {
   try {
-    const schoolId = req.params.schoolId;
-
     const result = await db.query(
       `
       SELECT
@@ -74,9 +70,9 @@ router.get("/form-fields/:schoolId", async (req, res) => {
       FROM school_student_schema
       WHERE school_id = $1
         AND active = true
-      ORDER BY field_order ASC
+      ORDER BY field_order
       `,
-      [schoolId]
+      [req.params.schoolId]
     );
 
     res.json(result.rows);
@@ -90,7 +86,6 @@ router.get("/form-fields/:schoolId", async (req, res) => {
 
 /* =====================================================
    STUDENT PROFILE VIEW
-   /students/view/20
 ===================================================== */
 router.get("/view/:id", async (req, res) => {
   try {
@@ -151,7 +146,6 @@ router.get("/view/:id", async (req, res) => {
 
 /* =====================================================
    ADD STUDENT
-   POST /students
 ===================================================== */
 router.post("/", async (req, res) => {
   try {
@@ -194,11 +188,7 @@ router.post("/", async (req, res) => {
       await db.query(
         `
         INSERT INTO student_field_values
-        (
-          student_id,
-          field_key,
-          field_value
-        )
+        (student_id, field_key, field_value)
         VALUES ($1,$2,$3)
         `,
         [studentId, key, fields[key]]
@@ -219,11 +209,37 @@ router.post("/", async (req, res) => {
 
 /* =====================================================
    UPDATE STUDENT
+   NOW SUPPORTS CLASS + DIVISION CHANGE
 ===================================================== */
 router.put("/:id", async (req, res) => {
   try {
     const studentId = req.params.id;
-    const { fields } = req.body;
+
+    const {
+      class_id,
+      division_id,
+      fields,
+    } = req.body;
+
+    // lock approved students
+    const lock = await db.query(
+      `
+      SELECT approved_status
+      FROM students
+      WHERE id = $1
+      `,
+      [studentId]
+    );
+
+    if (
+      lock.rows.length &&
+      lock.rows[0].approved_status === "approved"
+    ) {
+      return res.status(403).json({
+        error:
+          "Approved student cannot be edited",
+      });
+    }
 
     if (!fields || typeof fields !== "object") {
       return res.status(400).json({
@@ -231,6 +247,24 @@ router.put("/:id", async (req, res) => {
       });
     }
 
+    // update class/division if sent
+    if (class_id && division_id) {
+      await db.query(
+        `
+        UPDATE students
+        SET class_id = $1,
+            division_id = $2
+        WHERE id = $3
+        `,
+        [
+          class_id,
+          division_id,
+          studentId,
+        ]
+      );
+    }
+
+    // update dynamic fields
     for (const key of Object.keys(fields)) {
       const value = fields[key];
 
@@ -267,7 +301,9 @@ router.put("/:id", async (req, res) => {
       }
     }
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+    });
   } catch (err) {
     console.error("UPDATE ERROR:", err);
     res.status(500).json({
@@ -298,7 +334,8 @@ router.put("/approve/:id", async (req, res) => {
 
     if (!student.photo_drive_id) {
       return res.status(400).json({
-        error: "Upload photo before approval",
+        error:
+          "Upload photo before approval",
       });
     }
 
@@ -348,7 +385,9 @@ router.put("/approve/:id", async (req, res) => {
       [studentId]
     );
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+    });
   } catch (err) {
     console.error("APPROVE ERROR:", err);
     res.status(500).json({
@@ -371,7 +410,9 @@ router.delete("/:id", async (req, res) => {
       [req.params.id]
     );
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+    });
   } catch (err) {
     console.error("DELETE ERROR:", err);
     res.status(500).json({
@@ -385,7 +426,11 @@ router.delete("/:id", async (req, res) => {
 ===================================================== */
 router.get("/export/excel", async (req, res) => {
   try {
-    const { school_id, class_id, division_id } = req.query;
+    const {
+      school_id,
+      class_id,
+      division_id,
+    } = req.query;
 
     const result = await db.query(
       `
@@ -399,29 +444,46 @@ router.get("/export/excel", async (req, res) => {
         AND st.deleted_at IS NULL
       ORDER BY st.id
       `,
-      [school_id, class_id, division_id]
+      [
+        school_id,
+        class_id,
+        division_id,
+      ]
     );
 
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet("Students");
+    const workbook =
+      new ExcelJS.Workbook();
+
+    const sheet =
+      workbook.addWorksheet(
+        "Students"
+      );
 
     const map = {};
 
     result.rows.forEach((row) => {
       if (!map[row.id]) map[row.id] = {};
-      map[row.id][row.field_key] = row.field_value;
+      map[row.id][row.field_key] =
+        row.field_value;
     });
 
-    const rows = Object.values(map);
+    const rows =
+      Object.values(map);
 
     if (rows.length > 0) {
-      sheet.columns = Object.keys(rows[0]).map((k) => ({
-        header: k.toUpperCase(),
-        key: k,
-        width: 22,
-      }));
+      sheet.columns =
+        Object.keys(rows[0]).map(
+          (k) => ({
+            header:
+              k.toUpperCase(),
+            key: k,
+            width: 22,
+          })
+        );
 
-      rows.forEach((r) => sheet.addRow(r));
+      rows.forEach((r) =>
+        sheet.addRow(r)
+      );
     }
 
     res.setHeader(
