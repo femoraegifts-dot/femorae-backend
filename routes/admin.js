@@ -229,4 +229,80 @@ router.get("/exports", requireAdmin, async (req, res) => {
   }
 });
 
+/* =====================================================
+   DELETE SCHOOL FULL DATA
+===================================================== */
+router.delete("/delete-school/:id", async (req, res) => {
+  const client = await db.connect();
+
+  try {
+    const schoolId = req.params.id;
+
+    await client.query("BEGIN");
+
+    await client.query(
+      `
+      DELETE FROM student_field_values
+      WHERE student_id IN (
+        SELECT id FROM students
+        WHERE school_id = $1
+      )
+      `,
+      [schoolId]
+    );
+
+    await client.query(
+      `
+      DELETE FROM students
+      WHERE school_id = $1
+      `,
+      [schoolId]
+    );
+
+    await client.query(
+      `
+      DELETE FROM school_student_schema
+      WHERE school_id = $1
+      `,
+      [schoolId]
+    );
+
+    await client.query(
+      `
+      DELETE FROM classes
+      WHERE school_id = $1
+      `,
+      [schoolId]
+    );
+
+    await client.query(
+      `
+      DELETE FROM schools
+      WHERE id = $1
+      `,
+      [schoolId]
+    );
+
+    await client.query("COMMIT");
+
+    res.json({
+      success: true,
+      message: "School deleted fully",
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+
+    console.error(
+      "DELETE SCHOOL ERROR:",
+      err
+    );
+
+    res.status(500).json({
+      error: "Failed to delete school",
+    });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;

@@ -506,4 +506,32 @@ router.get("/export/excel", async (req, res) => {
   }
 });
 
+/* =====================================================
+   REMOVE APPROVAL
+===================================================== */
+router.put("/unapprove/:id", async (req, res) => {
+  try {
+    await db.query(
+      `
+      UPDATE students
+      SET approved_status = NULL,
+          approved_at = NULL
+      WHERE id = $1
+      `,
+      [req.params.id]
+    );
+
+    res.json({
+      success: true,
+      message: "Approval removed",
+    });
+  } catch (err) {
+    console.error("UNAPPROVE ERROR:", err);
+
+    res.status(500).json({
+      error: "Failed to remove approval",
+    });
+  }
+});
+
 module.exports = router;
