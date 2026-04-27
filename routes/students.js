@@ -1,6 +1,6 @@
 // ===============================
 // routes/students.js
-// CLEAN FINAL VERSION
+// PRODUCTION CLEAN VERSION
 // ===============================
 
 console.log("✅ STUDENTS ROUTE FILE LOADED");
@@ -57,6 +57,38 @@ router.get("/", async (req, res) => {
 });
 
 /* =====================================================
+   GET FORM FIELDS
+   /students/form-fields/2
+===================================================== */
+router.get("/form-fields/:schoolId", async (req, res) => {
+  try {
+    const schoolId = req.params.schoolId;
+
+    const result = await db.query(
+      `
+      SELECT
+        field_key,
+        field_label,
+        required,
+        field_order
+      FROM school_student_schema
+      WHERE school_id = $1
+        AND active = true
+      ORDER BY field_order ASC
+      `,
+      [schoolId]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("FORM FIELDS ERROR:", err);
+    res.status(500).json({
+      error: "Failed to load form fields",
+    });
+  }
+});
+
+/* =====================================================
    STUDENT PROFILE VIEW
    /students/view/20
 ===================================================== */
@@ -72,12 +104,9 @@ router.get("/view/:id", async (req, res) => {
         c.class_name,
         d.division_name
       FROM students st
-      LEFT JOIN schools s
-        ON s.id = st.school_id
-      LEFT JOIN classes c
-        ON c.id = st.class_id
-      LEFT JOIN divisions d
-        ON d.id = st.division_id
+      LEFT JOIN schools s ON s.id = st.school_id
+      LEFT JOIN classes c ON c.id = st.class_id
+      LEFT JOIN divisions d ON d.id = st.division_id
       WHERE st.id = $1
       `,
       [studentId]
@@ -121,8 +150,75 @@ router.get("/view/:id", async (req, res) => {
 });
 
 /* =====================================================
+   ADD STUDENT
+   POST /students
+===================================================== */
+router.post("/", async (req, res) => {
+  try {
+    const {
+      school_id,
+      class_id,
+      division_id,
+      fields,
+    } = req.body;
+
+    if (
+      !school_id ||
+      !class_id ||
+      !division_id ||
+      !fields
+    ) {
+      return res.status(400).json({
+        error: "Missing required data",
+      });
+    }
+
+    const studentRes = await db.query(
+      `
+      INSERT INTO students
+      (
+        school_id,
+        class_id,
+        division_id,
+        created_at
+      )
+      VALUES ($1,$2,$3,NOW())
+      RETURNING id
+      `,
+      [school_id, class_id, division_id]
+    );
+
+    const studentId = studentRes.rows[0].id;
+
+    for (const key of Object.keys(fields)) {
+      await db.query(
+        `
+        INSERT INTO student_field_values
+        (
+          student_id,
+          field_key,
+          field_value
+        )
+        VALUES ($1,$2,$3)
+        `,
+        [studentId, key, fields[key]]
+      );
+    }
+
+    res.json({
+      success: true,
+      student_id: studentId,
+    });
+  } catch (err) {
+    console.error("ADD STUDENT ERROR:", err);
+    res.status(500).json({
+      error: "Failed to add student",
+    });
+  }
+});
+
+/* =====================================================
    UPDATE STUDENT
-   PUT /students/:id
 ===================================================== */
 router.put("/:id", async (req, res) => {
   try {
@@ -164,16 +260,14 @@ router.put("/:id", async (req, res) => {
           `
           INSERT INTO student_field_values
           (student_id, field_key, field_value)
-          VALUES ($1, $2, $3)
+          VALUES ($1,$2,$3)
           `,
           [studentId, key, value]
         );
       }
     }
 
-    res.json({
-      success: true,
-    });
+    res.json({ success: true });
   } catch (err) {
     console.error("UPDATE ERROR:", err);
     res.status(500).json({
@@ -207,7 +301,7 @@ router.put("/approve/:id", async (req, res) => {
 });
 
 /* =====================================================
-   DELETE STUDENT (SOFT DELETE)
+   DELETE STUDENT
 ===================================================== */
 router.delete("/:id", async (req, res) => {
   try {
@@ -238,10 +332,7 @@ router.get("/export/excel", async (req, res) => {
 
     const result = await db.query(
       `
-      SELECT
-        st.id,
-        sf.field_key,
-        sf.field_value
+      SELECT st.id, sf.field_key, sf.field_value
       FROM students st
       LEFT JOIN student_field_values sf
         ON sf.student_id = st.id
@@ -270,7 +361,7 @@ router.get("/export/excel", async (req, res) => {
       sheet.columns = Object.keys(rows[0]).map((k) => ({
         header: k.toUpperCase(),
         key: k,
-        width: 20,
+        width: 22,
       }));
 
       rows.forEach((r) => sheet.addRow(r));
@@ -292,92 +383,6 @@ router.get("/export/excel", async (req, res) => {
     console.error("EXPORT ERROR:", err);
     res.status(500).json({
       error: "Export failed",
-    });
-  }
-});
-
-/* =====================================================
-   ADD STUDENT
-   POST /students
-===================================================== */
-router.post("/", async (req, res) => {
-  try {
-    const {
-      school_id,
-      class_id,
-      division_id,
-      fields,
-    } = req.body;
-
-    if (
-      !school_id ||
-      !class_id ||
-      !division_id ||
-      !fields
-    ) {
-      return res.status(400).json({
-        error: "Missing required data",
-      });
-    }
-
-    // create main student row
-    const studentRes = await db.query(
-      `
-      INSERT INTO students
-      (
-        school_id,
-        class_id,
-        division_id,
-        created_at
-      )
-      VALUES ($1,$2,$3,NOW())
-      RETURNING id
-      `,
-      [
-        school_id,
-        class_id,
-        division_id,
-      ]
-    );
-
-    const studentId =
-      studentRes.rows[0].id;
-
-    // save dynamic fields
-    for (const key of Object.keys(
-      fields
-    )) {
-      await db.query(
-        `
-        INSERT INTO student_field_values
-        (
-          student_id,
-          field_key,
-          field_value
-        )
-        VALUES ($1,$2,$3)
-        `,
-        [
-          studentId,
-          key,
-          fields[key],
-        ]
-      );
-    }
-
-    res.json({
-      success: true,
-      student_id: studentId,
-    });
-  } catch (err) {
-    console.error(
-      "ADD STUDENT ERROR:",
-      err
-    );
-
-    res.status(500).json({
-      error:
-        "Failed to add student",
     });
   }
 });
