@@ -1,0 +1,35 @@
+<h1><%= school.name %></h1>
+
+<a href="/admin/delete-school/<%= school.id %>"
+onclick="return confirm('Delete school fully?')"
+style="color:red">
+Delete School
+</a>
+
+<hr>
+
+<table border="1" cellpadding="8">
+<tr>
+<th>ID</th>
+<th>Name</th>
+<th>Code</th>
+<th>Status</th>
+<th>Action</th>
+</tr>
+
+<% students.forEach(s => { %>
+<tr>
+<td><%= s.id %></td>
+<td><%= s.name %></td>
+<td><%= s.student_code %></td>
+<td><%= s.approved_status %></td>
+<td>
+<% if(s.approved_status === 'approved'){ %>
+<a href="/admin/unapprove/<%= s.id %>">
+Remove Approval
+</a>
+<% } %>
+</td>
+</tr>
+<% }) %>
+</table>

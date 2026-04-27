@@ -39,8 +39,18 @@
                 <td><%= school.total_students %></td>
                 <td><%= school.completed_photos || 0 %></td>
                 <td>
-                  <a href="#">View</a>
-                </td>
+  <a href="/admin/school/<%= s.id %>">
+  View
+</a>
+
+  |
+
+  <a href="/admin/delete-school/<%= s.id %>"
+     onclick="return confirm('Delete full school data?')"
+     style="color:red;">
+     Delete
+  </a>
+</td>
               </tr>
             <% }) %>
           </tbody>

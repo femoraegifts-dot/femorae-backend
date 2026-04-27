@@ -230,76 +230,99 @@ router.get("/exports", requireAdmin, async (req, res) => {
 });
 
 /* =====================================================
-   DELETE SCHOOL FULL DATA
+   SCHOOL CONTROL PAGE
 ===================================================== */
-router.delete("/delete-school/:id", async (req, res) => {
+router.get("/school/:id", requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    const school = await db.query(
+      `
+      SELECT *
+      FROM schools
+      WHERE id = $1
+      `,
+      [id]
+    );
+
+    const students = await db.query(
+      `
+      SELECT
+        st.id,
+        st.approved_status,
+        MAX(CASE WHEN sf.field_key='student_id'
+          THEN sf.field_value END) AS student_code,
+        MAX(CASE WHEN sf.field_key='name'
+          THEN sf.field_value END) AS name
+      FROM students st
+      LEFT JOIN student_field_values sf
+        ON sf.student_id = st.id
+      WHERE st.school_id = $1
+      GROUP BY st.id
+      ORDER BY st.id DESC
+      `,
+      [id]
+    );
+
+    res.render("admin/school_view", {
+      school: school.rows[0],
+      students: students.rows,
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error");
+  }
+});
+
+
+/* =====================================================
+   DELETE SCHOOL
+===================================================== */
+router.get("/delete-school/:id", requireAdmin, async (req, res) => {
   const client = await db.connect();
 
   try {
-    const schoolId = req.params.id;
+    const id = req.params.id;
 
     await client.query("BEGIN");
 
-    await client.query(
-      `
+    await client.query(`
       DELETE FROM student_field_values
       WHERE student_id IN (
         SELECT id FROM students
         WHERE school_id = $1
       )
-      `,
-      [schoolId]
-    );
+    `, [id]);
 
-    await client.query(
-      `
+    await client.query(`
       DELETE FROM students
       WHERE school_id = $1
-      `,
-      [schoolId]
-    );
+    `, [id]);
 
-    await client.query(
-      `
+    await client.query(`
       DELETE FROM school_student_schema
       WHERE school_id = $1
-      `,
-      [schoolId]
-    );
+    `, [id]);
 
-    await client.query(
-      `
+    await client.query(`
       DELETE FROM classes
       WHERE school_id = $1
-      `,
-      [schoolId]
-    );
+    `, [id]);
 
-    await client.query(
-      `
+    await client.query(`
       DELETE FROM schools
       WHERE id = $1
-      `,
-      [schoolId]
-    );
+    `, [id]);
 
     await client.query("COMMIT");
 
-    res.json({
-      success: true,
-      message: "School deleted fully",
-    });
+    res.redirect("/admin/schools");
+
   } catch (err) {
     await client.query("ROLLBACK");
-
-    console.error(
-      "DELETE SCHOOL ERROR:",
-      err
-    );
-
-    res.status(500).json({
-      error: "Failed to delete school",
-    });
+    console.error(err);
+    res.send("Delete failed");
   } finally {
     client.release();
   }
