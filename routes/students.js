@@ -296,4 +296,90 @@ router.get("/export/excel", async (req, res) => {
   }
 });
 
+/* =====================================================
+   ADD STUDENT
+   POST /students
+===================================================== */
+router.post("/", async (req, res) => {
+  try {
+    const {
+      school_id,
+      class_id,
+      division_id,
+      fields,
+    } = req.body;
+
+    if (
+      !school_id ||
+      !class_id ||
+      !division_id ||
+      !fields
+    ) {
+      return res.status(400).json({
+        error: "Missing required data",
+      });
+    }
+
+    // create main student row
+    const studentRes = await db.query(
+      `
+      INSERT INTO students
+      (
+        school_id,
+        class_id,
+        division_id,
+        created_at
+      )
+      VALUES ($1,$2,$3,NOW())
+      RETURNING id
+      `,
+      [
+        school_id,
+        class_id,
+        division_id,
+      ]
+    );
+
+    const studentId =
+      studentRes.rows[0].id;
+
+    // save dynamic fields
+    for (const key of Object.keys(
+      fields
+    )) {
+      await db.query(
+        `
+        INSERT INTO student_field_values
+        (
+          student_id,
+          field_key,
+          field_value
+        )
+        VALUES ($1,$2,$3)
+        `,
+        [
+          studentId,
+          key,
+          fields[key],
+        ]
+      );
+    }
+
+    res.json({
+      success: true,
+      student_id: studentId,
+    });
+  } catch (err) {
+    console.error(
+      "ADD STUDENT ERROR:",
+      err
+    );
+
+    res.status(500).json({
+      error:
+        "Failed to add student",
+    });
+  }
+});
+
 module.exports = router;
