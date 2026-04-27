@@ -57,6 +57,29 @@ router.post("/student-photo", upload.single("photo"), async (req, res) => {
     console.log("📤 Uploading file:", req.file.path);
     console.log("📁 File exists:", fs.existsSync(req.file.path));
 
+    const lockCheck = await db.query(
+  `
+  SELECT approved_status
+  FROM students
+  WHERE id = $1
+  `,
+  [student.student_id]
+);
+
+if (
+  lockCheck.rows[0]
+    ?.approved_status === "approved"
+) {
+  if (fs.existsSync(req.file.path)) {
+    fs.unlinkSync(req.file.path);
+  }
+
+  return res.status(403).json({
+    error:
+      "Approved student photo locked",
+  });
+}
+
     /* =========================
        2️⃣ SANITIZE NAMES
     ========================= */

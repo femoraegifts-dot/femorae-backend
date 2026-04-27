@@ -281,6 +281,63 @@ router.put("/:id", async (req, res) => {
 ===================================================== */
 router.put("/approve/:id", async (req, res) => {
   try {
+    const studentId = req.params.id;
+
+    const st = await db.query(
+      `SELECT * FROM students WHERE id = $1`,
+      [studentId]
+    );
+
+    if (st.rows.length === 0) {
+      return res.status(404).json({
+        error: "Student not found",
+      });
+    }
+
+    const student = st.rows[0];
+
+    if (!student.photo_drive_id) {
+      return res.status(400).json({
+        error: "Upload photo before approval",
+      });
+    }
+
+    const reqFields = await db.query(
+      `
+      SELECT field_key
+      FROM school_student_schema
+      WHERE school_id = $1
+      AND active = true
+      AND required = true
+      `,
+      [student.school_id]
+    );
+
+    for (const row of reqFields.rows) {
+      const val = await db.query(
+        `
+        SELECT field_value
+        FROM student_field_values
+        WHERE student_id = $1
+        AND field_key = $2
+        LIMIT 1
+        `,
+        [studentId, row.field_key]
+      );
+
+      if (
+        val.rows.length === 0 ||
+        !val.rows[0].field_value ||
+        val.rows[0].field_value.trim() === ""
+      ) {
+        return res.status(400).json({
+          error:
+            row.field_key +
+            " is required",
+        });
+      }
+    }
+
     await db.query(
       `
       UPDATE students
@@ -288,14 +345,14 @@ router.put("/approve/:id", async (req, res) => {
           approved_at=NOW()
       WHERE id = $1
       `,
-      [req.params.id]
+      [studentId]
     );
 
     res.json({ success: true });
   } catch (err) {
     console.error("APPROVE ERROR:", err);
     res.status(500).json({
-      error: "Approve failed",
+      error: "Approval failed",
     });
   }
 });
