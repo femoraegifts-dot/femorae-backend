@@ -536,14 +536,17 @@ router.get("/unapprove/:id", requireAdmin, async (req, res) => {
     await db.query(
       `
       UPDATE students
-      SET approved_status = 'pending',
+      SET approved_status = NULL,
           approved_at = NULL
       WHERE id = $1
       `,
       [req.params.id]
     );
 
-    res.redirect("back");
+    res.redirect(
+      req.get("Referrer") ||
+      "/admin/schools"
+    );
 
   } catch (err) {
     console.error("UNAPPROVE ERROR:", err);
