@@ -16,29 +16,30 @@ const upload = multer({
 
 /* =====================================================
    POST /api/upload/student-photo
+   FINAL VERSION (USES DB ID)
 ===================================================== */
 router.post(
   "/student-photo",
   upload.single("photo"),
   async (req, res) => {
     try {
-      const studentCode =
-        req.body.student_id;
+      const studentDbId =
+        req.body.student_db_id;
 
       if (
-        !studentCode ||
+        !studentDbId ||
         !req.file
       ) {
         return res
           .status(400)
           .json({
             error:
-              "student_id and photo required",
+              "student_db_id and photo required",
           });
       }
 
       /* ===================================
-         1. FIND STUDENT
+         1. FIND STUDENT DIRECTLY
       =================================== */
       const result =
         await db.query(
@@ -46,6 +47,7 @@ router.post(
         SELECT
           st.id AS db_id,
           st.approved_status,
+          sf.field_value AS student_code,
           s.name AS school_name,
           c.class_name,
           d.division_name
@@ -61,15 +63,14 @@ router.post(
         JOIN divisions d
           ON d.id = st.division_id
 
-        JOIN student_field_values v
-          ON v.student_id = st.id
+        LEFT JOIN student_field_values sf
+          ON sf.student_id = st.id
+         AND sf.field_key = 'student_id'
 
-        WHERE v.field_key = 'student_id'
-          AND v.field_value = $1
-
+        WHERE st.id = $1
         LIMIT 1
       `,
-          [studentCode]
+          [studentDbId]
         );
 
       const student =
@@ -97,13 +98,6 @@ router.post(
       console.log(
         "📤 Uploading file:",
         req.file.path
-      );
-
-      console.log(
-        "📁 File exists:",
-        fs.existsSync(
-          req.file.path
-        )
       );
 
       /* ===================================
@@ -166,10 +160,20 @@ router.post(
           student.division_name
         );
 
+      const studentCode =
+        student.student_code ||
+        student.db_id;
+
       /* ===================================
          4. CLOUDINARY FOLDER
       =================================== */
-      const folderPath = `femorae/${schoolName}/${className}/${divisionName}`;
+      const folderPath =
+          "femorae/" +
+          schoolName +
+          "/" +
+          className +
+          "/" +
+          divisionName;
 
       console.log(
         "📁 Cloudinary folder:",
@@ -177,12 +181,12 @@ router.post(
       );
 
       /* ===================================
-         5. UPLOAD TO CLOUDINARY
+         5. UPLOAD
       =================================== */
       const cloudinaryResult =
         await uploadToCloudinary(
           req.file.path,
-          studentCode,
+          studentCode.toString(),
           folderPath
         );
 
@@ -201,32 +205,30 @@ router.post(
       );
 
       /* ===================================
-         6. UPDATE STUDENT TABLE
+         6. UPDATE DATABASE
       =================================== */
-      const updateResult =
-        await db.query(
-          `
+      await db.query(
+        `
         UPDATE students
         SET
           photo_status = 'completed',
           photo_drive_id = $1,
           updated_at = NOW()
         WHERE id = $2
-        RETURNING id
       `,
-          [
-            cloudinaryResult.public_id,
-            student.db_id,
-          ]
-        );
+        [
+          cloudinaryResult.public_id,
+          student.db_id,
+        ]
+      );
 
       console.log(
         "✅ DB Updated:",
-        updateResult.rows
+        student.db_id
       );
 
       /* ===================================
-         7. CLEAN TEMP FILE
+         7. CLEANUP
       =================================== */
       if (
         fs.existsSync(
@@ -247,12 +249,7 @@ router.post(
       });
     } catch (err) {
       console.error(
-        "❌ Upload error message:",
-        err.message
-      );
-
-      console.error(
-        "❌ Upload error full:",
+        "❌ Upload error:",
         err
       );
 
