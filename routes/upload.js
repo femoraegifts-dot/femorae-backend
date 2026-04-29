@@ -186,7 +186,7 @@ router.post(
       const cloudinaryResult =
         await uploadToCloudinary(
           req.file.path,
-          studentCode.toString(),
+          studentCode.toString() + "_" + Date.now(),
           folderPath
         );
 
