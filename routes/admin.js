@@ -528,4 +528,27 @@ router.get(
   }
 );
 
+/* ============================================
+   REMOVE APPROVAL
+============================================ */
+router.get("/unapprove/:id", requireAdmin, async (req, res) => {
+  try {
+    await db.query(
+      `
+      UPDATE students
+      SET approved_status = 'pending',
+          approved_at = NULL
+      WHERE id = $1
+      `,
+      [req.params.id]
+    );
+
+    res.redirect("back");
+
+  } catch (err) {
+    console.error("UNAPPROVE ERROR:", err);
+    res.send("Failed");
+  }
+});
+
 module.exports = router;
