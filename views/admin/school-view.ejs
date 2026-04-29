@@ -1,10 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>School View</title>
+</head>
+<body>
+
 <h1><%= school.name %></h1>
 
+<p>Total Students: <%= students.length %></p>
+
+<p>
 <a href="/admin/delete-school/<%= school.id %>"
-onclick="return confirm('Delete school fully?')"
-style="color:red">
+onclick="return confirm('Delete full school?')"
+style="color:red;">
 Delete School
 </a>
+</p>
 
 <hr>
 
@@ -14,22 +25,18 @@ Delete School
 <th>Name</th>
 <th>Code</th>
 <th>Status</th>
-<th>Action</th>
 </tr>
 
 <% students.forEach(s => { %>
 <tr>
 <td><%= s.id %></td>
-<td><%= s.name %></td>
-<td><%= s.student_code %></td>
-<td><%= s.approved_status %></td>
-<td>
-<% if(s.approved_status === 'approved'){ %>
-<a href="/admin/unapprove/<%= s.id %>">
-Remove Approval
-</a>
-<% } %>
-</td>
+<td><%= s.name || '' %></td>
+<td><%= s.student_code || '' %></td>
+<td><%= s.approved_status || '' %></td>
 </tr>
 <% }) %>
+
 </table>
+
+</body>
+</html>
