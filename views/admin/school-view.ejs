@@ -2,41 +2,56 @@
 <html>
 <head>
   <title>School View</title>
+  <link rel="stylesheet" href="/admin.css">
 </head>
 <body>
 
-<h1><%= school.name %></h1>
+<%- include('../partials/header') %>
 
-<p>Total Students: <%= students.length %></p>
+<div style="display:flex;">
+  <%- include('../partials/sidebar') %>
 
-<p>
-<a href="/admin/delete-school/<%= school.id %>"
-onclick="return confirm('Delete full school?')"
-style="color:red;">
-Delete School
-</a>
-</p>
+  <div style="padding:20px; flex:1;">
 
-<hr>
+    <h2><%= school.name %></h2>
 
-<table border="1" cellpadding="8">
-<tr>
-<th>ID</th>
-<th>Name</th>
-<th>Code</th>
-<th>Status</th>
-</tr>
+    <p>Total Students: <%= students.length %></p>
 
-<% students.forEach(s => { %>
-<tr>
-<td><%= s.id %></td>
-<td><%= s.name || '' %></td>
-<td><%= s.student_code || '' %></td>
-<td><%= s.approved_status || '' %></td>
-</tr>
-<% }) %>
+    <p>
+      <a href="/admin/delete-school/<%= school.id %>"
+         onclick="return confirm('Delete full school data?')"
+         style="color:red;">
+         Delete School
+      </a>
+    </p>
 
-</table>
+    <hr>
+
+    <table border="1" cellpadding="8" cellspacing="0" width="100%">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Student Code</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <% students.forEach(student => { %>
+          <tr>
+            <td><%= student.id %></td>
+            <td><%= student.name || '' %></td>
+            <td><%= student.student_code || '' %></td>
+            <td><%= student.approved_status || 'pending' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+
+    </table>
+
+  </div>
+</div>
 
 </body>
 </html>
