@@ -29,6 +29,7 @@ router.get("/", async (req, res) => {
   st.id,
   st.photo_status,
   st.photo_drive_id,
+  st.photo_version,
   st.approved_status,
   st.updated_at,
         MAX(CASE WHEN sf.field_key='student_id' THEN sf.field_value END) AS student_id,

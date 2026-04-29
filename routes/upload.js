@@ -191,7 +191,7 @@ router.post(
         );
 
       /* =====================================
-         UPDATE DATABASE
+        UPDATE DATABASE
       ===================================== */
       await db.query(
         `
@@ -199,15 +199,16 @@ router.post(
         SET
           photo_status = 'completed',
           photo_drive_id = $1,
+          photo_version = $2,
           updated_at = NOW()
-        WHERE id = $2
+        WHERE id = $3
       `,
         [
           uploaded.public_id,
+          uploaded.version,
           student.id,
         ]
       );
-
       /* =====================================
          DELETE TEMP FILE
       ===================================== */
