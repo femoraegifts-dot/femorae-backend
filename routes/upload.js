@@ -4,19 +4,27 @@ const multer = require("multer");
 const fs = require("fs");
 const db = require("../config/db");
 
-// Cloudinary upload
-const {
-  uploadToCloudinary,
-} = require("../services/cloudinary");
+// Cloudinary
+const cloudinary = require("cloudinary").v2;
 
-// Multer temp upload
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name:
+    process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:
+    process.env.CLOUDINARY_API_KEY,
+  api_secret:
+    process.env.CLOUDINARY_API_SECRET,
+});
+
+// Temp upload folder
 const upload = multer({
   dest: "uploads/",
 });
 
 /* =====================================================
    POST /api/upload/student-photo
-   FINAL VERSION (USES DB ID)
+   FINAL CLEAN VERSION
 ===================================================== */
 router.post(
   "/student-photo",
@@ -38,38 +46,38 @@ router.post(
           });
       }
 
-      /* ===================================
-         1. FIND STUDENT DIRECTLY
-      =================================== */
+      /* =====================================
+         FIND STUDENT
+      ===================================== */
       const result =
         await db.query(
           `
-        SELECT
-          st.id AS db_id,
-          st.approved_status,
-          sf.field_value AS student_code,
-          s.name AS school_name,
-          c.class_name,
-          d.division_name
+          SELECT
+            st.id,
+            st.approved_status,
+            sf.field_value AS student_code,
+            s.name AS school_name,
+            c.class_name,
+            d.division_name
 
-        FROM students st
+          FROM students st
 
-        JOIN schools s
-          ON s.id = st.school_id
+          JOIN schools s
+            ON s.id = st.school_id
 
-        JOIN classes c
-          ON c.id = st.class_id
+          JOIN classes c
+            ON c.id = st.class_id
 
-        JOIN divisions d
-          ON d.id = st.division_id
+          JOIN divisions d
+            ON d.id = st.division_id
 
-        LEFT JOIN student_field_values sf
-          ON sf.student_id = st.id
-         AND sf.field_key = 'student_id'
+          LEFT JOIN student_field_values sf
+            ON sf.student_id = st.id
+           AND sf.field_key = 'student_id'
 
-        WHERE st.id = $1
-        LIMIT 1
-      `,
+          WHERE st.id = $1
+          LIMIT 1
+        `,
           [studentDbId]
         );
 
@@ -95,14 +103,9 @@ router.post(
           });
       }
 
-      console.log(
-        "📤 Uploading file:",
-        req.file.path
-      );
-
-      /* ===================================
-         2. APPROVAL LOCK
-      =================================== */
+      /* =====================================
+         LOCK APPROVED
+      ===================================== */
       if (
         student.approved_status ===
         "approved"
@@ -125,16 +128,16 @@ router.post(
           });
       }
 
-      /* ===================================
-         3. CLEAN TEXT
-      =================================== */
+      /* =====================================
+         CLEAN TEXT
+      ===================================== */
       const clean = (
         text
       ) =>
         text
           ?.toString()
-          .toLowerCase()
           .trim()
+          .toLowerCase()
           .replace(
             /\s+/g,
             "_"
@@ -142,8 +145,7 @@ router.post(
           .replace(
             /[^a-z0-9_]/g,
             ""
-          ) ||
-        "unknown";
+          ) || "unknown";
 
       const schoolName =
         clean(
@@ -161,52 +163,36 @@ router.post(
         );
 
       const studentCode =
-        student.student_code ||
-        student.db_id;
+        clean(
+          student.student_code ||
+            student.id
+        );
 
-      /* ===================================
-         4. CLOUDINARY FOLDER
-      =================================== */
       const folderPath =
-          "femorae/" +
-          schoolName +
-          "/" +
-          className +
-          "/" +
-          divisionName;
+        `femorae/${schoolName}/${className}/${divisionName}`;
 
-      console.log(
-        "📁 Cloudinary folder:",
-        folderPath
-      );
-
-      /* ===================================
-         5. UPLOAD
-      =================================== */
-      const cloudinaryResult =
-        await uploadToCloudinary(
+      /* =====================================
+         UPLOAD TO CLOUDINARY
+         SAME NAME / REPLACE OLD FILE
+      ===================================== */
+      const uploaded =
+        await cloudinary.uploader.upload(
           req.file.path,
-          studentCode.toString() + "_" + Date.now(),
-          folderPath
+          {
+            folder:
+              folderPath,
+            public_id:
+              studentCode,
+            overwrite: true,
+            invalidate: true,
+            resource_type:
+              "image",
+          }
         );
 
-      if (
-        !cloudinaryResult ||
-        !cloudinaryResult.public_id
-      ) {
-        throw new Error(
-          "Cloudinary upload failed"
-        );
-      }
-
-      console.log(
-        "☁️ Cloudinary upload success:",
-        cloudinaryResult.url
-      );
-
-      /* ===================================
-         6. UPDATE DATABASE
-      =================================== */
+      /* =====================================
+         UPDATE DATABASE
+      ===================================== */
       await db.query(
         `
         UPDATE students
@@ -217,19 +203,14 @@ router.post(
         WHERE id = $2
       `,
         [
-          cloudinaryResult.public_id,
-          student.db_id,
+          uploaded.public_id,
+          student.id,
         ]
       );
 
-      console.log(
-        "✅ DB Updated:",
-        student.db_id
-      );
-
-      /* ===================================
-         7. CLEANUP
-      =================================== */
+      /* =====================================
+         DELETE TEMP FILE
+      ===================================== */
       if (
         fs.existsSync(
           req.file.path
@@ -242,14 +223,16 @@ router.post(
 
       return res.json({
         success: true,
-        image_url:
-          cloudinaryResult.url,
         public_id:
-          cloudinaryResult.public_id,
+          uploaded.public_id,
+        secure_url:
+          uploaded.secure_url,
+        version:
+          uploaded.version,
       });
     } catch (err) {
       console.error(
-        "❌ Upload error:",
+        "UPLOAD ERROR:",
         err
       );
 
