@@ -26,10 +26,11 @@ router.get("/", async (req, res) => {
     const result = await db.query(
       `
       SELECT
-        st.id,
-        st.photo_status,
-        st.photo_drive_id,
-        st.approved_status,
+  st.id,
+  st.photo_status,
+  st.photo_drive_id,
+  st.approved_status,
+  st.updated_at,
         MAX(CASE WHEN sf.field_key='student_id' THEN sf.field_value END) AS student_id,
         MAX(CASE WHEN sf.field_key='name' THEN sf.field_value END) AS name
       FROM students st
