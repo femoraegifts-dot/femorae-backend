@@ -436,14 +436,22 @@ router.get("/export/excel", async (req, res) => {
 
     const result = await db.query(
       `
-      SELECT st.id, sf.field_key, sf.field_value
+      SELECT
+        st.id,
+        st.photo_drive_id,
+        sf.field_key,
+        sf.field_value
+
       FROM students st
+
       LEFT JOIN student_field_values sf
         ON sf.student_id = st.id
+
       WHERE st.school_id = $1
         AND st.class_id = $2
         AND st.division_id = $3
         AND st.deleted_at IS NULL
+
       ORDER BY st.id
       `,
       [
@@ -464,7 +472,25 @@ router.get("/export/excel", async (req, res) => {
     const map = {};
 
     result.rows.forEach((row) => {
-      if (!map[row.id]) map[row.id] = {};
+      if (!map[row.id]) {
+        map[row.id] = {};
+
+        /* =========================
+           ADD IMAGE COLUMN
+        ========================= */
+        if (row.photo_drive_id) {
+          const filename =
+            row.photo_drive_id
+              .split("/")
+              .pop();
+
+          map[row.id]["@image"] =
+            `${filename}.jpg`;
+        } else {
+          map[row.id]["@image"] = "";
+        }
+      }
+
       map[row.id][row.field_key] =
         row.field_value;
     });
@@ -476,10 +502,9 @@ router.get("/export/excel", async (req, res) => {
       sheet.columns =
         Object.keys(rows[0]).map(
           (k) => ({
-            header:
-              k.toUpperCase(),
+            header: k,
             key: k,
-            width: 22,
+            width: 24,
           })
         );
 
@@ -499,9 +524,14 @@ router.get("/export/excel", async (req, res) => {
     );
 
     await workbook.xlsx.write(res);
+
     res.end();
   } catch (err) {
-    console.error("EXPORT ERROR:", err);
+    console.error(
+      "EXPORT ERROR:",
+      err
+    );
+
     res.status(500).json({
       error: "Export failed",
     });
