@@ -387,36 +387,42 @@ router.get(
           [id]
         );
 
-      const students =
-        await db.query(
-          `
-        SELECT
-          st.id,
-          st.approved_status,
-          MAX(CASE
-            WHEN sf.field_key='student_id'
-            THEN sf.field_value
-          END) AS student_code,
+      const structure =
+  await db.query(
+    `
+    SELECT
+      c.id AS class_id,
+      c.class_name,
 
-          MAX(CASE
-            WHEN sf.field_key='name'
-            THEN sf.field_value
-          END) AS name
+      d.id AS division_id,
+      d.division_name,
 
-        FROM students st
-        LEFT JOIN student_field_values sf
-          ON sf.student_id = st.id
+      COUNT(st.id) AS total_students
 
-        WHERE st.school_id = $1
+    FROM classes c
 
-        GROUP BY
-          st.id,
-          st.approved_status
+    LEFT JOIN divisions d
+      ON d.class_id = c.id
 
-        ORDER BY st.id DESC
-      `,
-          [id]
-        );
+    LEFT JOIN students st
+      ON st.class_id = c.id
+     AND st.division_id = d.id
+     AND st.deleted_at IS NULL
+
+    WHERE c.school_id = $1
+
+    GROUP BY
+      c.id,
+      c.class_name,
+      d.id,
+      d.division_name
+
+    ORDER BY
+      c.class_name,
+      d.division_name
+  `,
+    [id]
+  );
 
       res.render(
         "admin/school_view",
@@ -553,5 +559,154 @@ router.get("/unapprove/:id", requireAdmin, async (req, res) => {
     res.send("Failed");
   }
 });
+
+/* ============================================
+   ADD CLASS
+============================================ */
+router.post(
+  "/school/:id/add-class",
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const schoolId =
+        req.params.id;
+
+      const { class_name } =
+        req.body;
+
+      if (!class_name) {
+        return res.redirect(
+          `/admin/school/${schoolId}`
+        );
+      }
+
+      // prevent duplicate
+      const existing =
+        await db.query(
+          `
+          SELECT id
+          FROM classes
+          WHERE school_id = $1
+            AND LOWER(class_name) = LOWER($2)
+        `,
+          [
+            schoolId,
+            class_name,
+          ]
+        );
+
+      if (
+        existing.rows.length >
+        0
+      ) {
+        return res.redirect(
+          `/admin/school/${schoolId}`
+        );
+      }
+
+      await db.query(
+        `
+        INSERT INTO classes
+        (school_id, class_name)
+        VALUES ($1, $2)
+      `,
+        [
+          schoolId,
+          class_name,
+        ]
+      );
+
+      res.redirect(
+        `/admin/school/${schoolId}`
+      );
+    } catch (err) {
+      console.error(
+        "ADD CLASS ERROR:",
+        err
+      );
+
+      res.send(
+        "Failed to add class"
+      );
+    }
+  }
+);
+
+/* ============================================
+   ADD DIVISION
+============================================ */
+router.post(
+  "/school/:id/add-division",
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const schoolId =
+        req.params.id;
+
+      const {
+        class_id,
+        division_name,
+      } = req.body;
+
+      if (
+        !class_id ||
+        !division_name
+      ) {
+        return res.redirect(
+          `/admin/school/${schoolId}`
+        );
+      }
+
+      // prevent duplicate
+      const existing =
+        await db.query(
+          `
+          SELECT id
+          FROM divisions
+          WHERE class_id = $1
+            AND LOWER(division_name) = LOWER($2)
+        `,
+          [
+            class_id,
+            division_name,
+          ]
+        );
+
+      if (
+        existing.rows.length >
+        0
+      ) {
+        return res.redirect(
+          `/admin/school/${schoolId}`
+        );
+      }
+
+      await db.query(
+        `
+        INSERT INTO divisions
+        (class_id, division_name)
+        VALUES ($1, $2)
+      `,
+        [
+          class_id,
+          division_name,
+        ]
+      );
+
+      res.redirect(
+        `/admin/school/${schoolId}`
+      );
+    } catch (err) {
+      console.error(
+        "ADD DIVISION ERROR:",
+        err
+      );
+
+      res.send(
+        "Failed to add division"
+      );
+    }
+  }
+);
 
 module.exports = router;

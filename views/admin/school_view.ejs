@@ -15,7 +15,10 @@
 
     <h2><%= school.name %></h2>
 
-    <p>Total Students: <%= students.length %></p>
+    <p>
+      Total Students:
+      <strong><%= students.length %></strong>
+    </p>
 
     <p>
       <a href="/admin/delete-school/<%= school.id %>"
@@ -27,7 +30,139 @@
 
     <hr>
 
-    <table border="1" cellpadding="8" cellspacing="0" width="100%">
+    <!-- =========================================
+         CLASS MANAGEMENT
+    ========================================== -->
+
+    <h3>Class Management</h3>
+
+    <div style="display:flex; gap:40px; margin-bottom:30px;">
+
+      <!-- ADD CLASS -->
+      <form method="POST"
+            action="/admin/school/<%= school.id %>/add-class">
+
+        <h4>Add Class</h4>
+
+        <input type="text"
+               name="class_name"
+               placeholder="Class Name"
+               required
+               style="padding:8px;">
+
+        <button type="submit"
+                style="padding:8px 12px;">
+          Add Class
+        </button>
+
+      </form>
+
+      <!-- ADD DIVISION -->
+      <form method="POST"
+            action="/admin/school/<%= school.id %>/add-division">
+
+        <h4>Add Division</h4>
+
+        <select name="class_id"
+                required
+                style="padding:8px;">
+
+          <%
+          const uniqueClasses = [];
+
+          structure.forEach(row => {
+            if(
+              !uniqueClasses.find(
+                c => c.class_id == row.class_id
+              )
+            ){
+              uniqueClasses.push(row);
+            }
+          });
+          %>
+
+          <% uniqueClasses.forEach(c => { %>
+
+            <option value="<%= c.class_id %>">
+              <%= c.class_name %>
+            </option>
+
+          <% }) %>
+
+        </select>
+
+        <input type="text"
+               name="division_name"
+               placeholder="Division"
+               required
+               style="padding:8px;">
+
+        <button type="submit"
+                style="padding:8px 12px;">
+          Add Division
+        </button>
+
+      </form>
+
+    </div>
+
+    <!-- =========================================
+         SCHOOL STRUCTURE
+    ========================================== -->
+
+    <h3>School Structure</h3>
+
+    <table border="1"
+           cellpadding="8"
+           cellspacing="0"
+           width="100%"
+           style="margin-bottom:30px;">
+
+      <thead>
+        <tr>
+          <th>Class</th>
+          <th>Division</th>
+          <th>Total Students</th>
+        </tr>
+      </thead>
+
+      <tbody>
+
+        <% structure.forEach(row => { %>
+
+          <tr>
+
+            <td>
+              <%= row.class_name %>
+            </td>
+
+            <td>
+              <%= row.division_name || '-' %>
+            </td>
+
+            <td>
+              <%= row.total_students %>
+            </td>
+
+          </tr>
+
+        <% }) %>
+
+      </tbody>
+
+    </table>
+
+    <!-- =========================================
+         STUDENTS TABLE
+    ========================================== -->
+
+    <h3>Students</h3>
+
+    <table border="1"
+           cellpadding="8"
+           cellspacing="0"
+           width="100%">
+
       <thead>
         <tr>
           <th>ID</th>
@@ -39,16 +174,39 @@
       </thead>
 
       <tbody>
+
         <% students.forEach(student => { %>
+
           <tr>
-            <td><%= student.id %></td>
-
-            <td><%= student.name || '' %></td>
-
-            <td><%= student.student_code || '' %></td>
 
             <td>
-              <%= student.approved_status || NULL %>
+              <%= student.id %>
+            </td>
+
+            <td>
+              <%= student.name || '' %>
+            </td>
+
+            <td>
+              <%= student.student_code || '' %>
+            </td>
+
+            <td>
+
+              <% if(student.approved_status === 'approved'){ %>
+
+                <span style="color:green; font-weight:bold;">
+                  Approved
+                </span>
+
+              <% } else { %>
+
+                <span style="color:orange; font-weight:bold;">
+                  Pending
+                </span>
+
+              <% } %>
+
             </td>
 
             <td>
@@ -58,7 +216,9 @@
                 <a href="/admin/unapprove/<%= student.id %>"
                    style="color:orange; font-weight:bold;"
                    onclick="return confirm('Change approved status to pending?')">
+
                    Make NULL
+
                 </a>
 
               <% } else { %>
@@ -68,8 +228,11 @@
               <% } %>
 
             </td>
+
           </tr>
+
         <% }) %>
+
       </tbody>
 
     </table>
