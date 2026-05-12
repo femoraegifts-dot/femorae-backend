@@ -456,14 +456,18 @@ router.get(
   );
 
       res.render(
-        "admin/school_view",
-        {
-          school:
-            school.rows[0],
-          students:
-            students.rows,
-        }
-      );
+  "admin/school_view",
+  {
+    school:
+      school.rows[0],
+
+    students:
+      students.rows,
+
+    structure:
+      structure.rows,
+  }
+);
     } catch (err) {
       console.error(
         "SCHOOL VIEW ERROR:",
