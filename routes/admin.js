@@ -418,6 +418,43 @@ router.get(
           [id]
         );
 
+        const structure =
+  await db.query(
+    `
+    SELECT
+      c.id AS class_id,
+      c.class_name,
+
+      d.id AS division_id,
+      d.division_name,
+
+      COUNT(st.id) AS total_students
+
+    FROM classes c
+
+    LEFT JOIN divisions d
+      ON d.class_id = c.id
+
+    LEFT JOIN students st
+      ON st.class_id = c.id
+     AND st.division_id = d.id
+     AND st.deleted_at IS NULL
+
+    WHERE c.school_id = $1
+
+    GROUP BY
+      c.id,
+      c.class_name,
+      d.id,
+      d.division_name
+
+    ORDER BY
+      c.class_name,
+      d.division_name
+  `,
+    [id]
+  );
+
       res.render(
         "admin/school_view",
         {
