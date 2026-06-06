@@ -17,50 +17,51 @@ router.get("/by-school/:schoolId", async (req, res) => {
     const result = await db.query(
   `
   SELECT
-    c.id AS class_id,
-    c.class_name,
-    d.id AS division_id,
-    d.division_name,
+  c.id AS class_id,
+  c.class_name,
+  d.id AS division_id,
+  d.division_name,
 
-    COUNT(s.id) AS total,
+  COUNT(s.id) AS total,
 
-SUM(
-  CASE
-    WHEN s.photo_status = 'completed'
-    THEN 1
-    ELSE 0
-  END
-) AS completed
-SUM(
-  CASE
-    WHEN s.photo_status = 'approved'
-    THEN 1
-    ELSE 0
-  END
-) AS completed 
+  SUM(
+    CASE
+      WHEN s.photo_status = 'completed'
+      THEN 1
+      ELSE 0
+    END
+  ) AS completed,
 
-  FROM classes c
+  SUM(
+    CASE
+      WHEN s.approved_status = 'approved'
+      THEN 1
+      ELSE 0
+    END
+  ) AS approved
 
-  JOIN divisions d
-    ON d.class_id = c.id
+FROM classes c
 
-  LEFT JOIN students s
-    ON s.class_id = c.id
-   AND s.division_id = d.id
-   AND s.school_id = $1
-   AND s.deleted_at IS NULL
+JOIN divisions d
+  ON d.class_id = c.id
 
-  WHERE c.school_id = $1
+LEFT JOIN students s
+  ON s.class_id = c.id
+ AND s.division_id = d.id
+ AND s.school_id = $1
+ AND s.deleted_at IS NULL
 
-  GROUP BY
-    c.id,
-    c.class_name,
-    d.id,
-    d.division_name
+WHERE c.school_id = $1
 
-  ORDER BY
-    c.class_name,
-    d.division_name
+GROUP BY
+  c.id,
+  c.class_name,
+  d.id,
+  d.division_name
+
+ORDER BY
+  c.class_name,
+  d.division_name
   `,
   [schoolId]
 );
