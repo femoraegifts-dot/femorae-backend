@@ -24,20 +24,20 @@ router.get("/by-school/:schoolId", async (req, res) => {
 
     COUNT(s.id) AS total,
 
-    SUM(
-      CASE
-        WHEN s.photo_status = 'completed'
-        THEN 1
-        ELSE 0
-      END
-    ) AS completed
-    SUM(
-      CASE
-        WHEN s.photo_status = 'approved'
-        THEN 1
-        ELSE 0
-      END
-    ) AS completed 
+SUM(
+  CASE
+    WHEN s.photo_status = 'completed'
+    THEN 1
+    ELSE 0
+  END
+) AS completed
+SUM(
+  CASE
+    WHEN s.photo_status = 'approved'
+    THEN 1
+    ELSE 0
+  END
+) AS completed 
 
   FROM classes c
 
