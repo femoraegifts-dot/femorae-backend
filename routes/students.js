@@ -613,4 +613,51 @@ router.put("/unapprove/:id", async (req, res) => {
   }
 });
 
+/* =====================================================
+   BULK APPROVAL
+===================================================== */
+router.put("/approve-bulk", async (req, res) => {
+  try {
+    const {
+      school_id,
+      class_id,
+      division_id,
+    } = req.body;
+
+    const result = await db.query(
+      `
+      UPDATE students
+      SET approved_status='approved',
+          approved_at=NOW()
+      WHERE school_id=$1
+        AND class_id=$2
+        AND division_id=$3
+        AND photo_status='completed'
+        AND deleted_at IS NULL
+      RETURNING id
+      `,
+      [
+        school_id,
+        class_id,
+        division_id,
+      ]
+    );
+
+    res.json({
+      success: true,
+      approved: result.rows.length,
+    });
+
+  } catch (err) {
+    console.error(
+      "BULK APPROVE ERROR:",
+      err
+    );
+
+    res.status(500).json({
+      error: "Bulk approval failed",
+    });
+  }
+});
+
 module.exports = router;
