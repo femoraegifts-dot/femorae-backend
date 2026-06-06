@@ -627,13 +627,15 @@ router.put("/approve-bulk", async (req, res) => {
     const result = await db.query(
       `
       UPDATE students
-      SET approved_status='approved',
-          approved_at=NOW()
-      WHERE school_id=$1
-        AND class_id=$2
-        AND division_id=$3
-        AND photo_status='completed'
+      SET
+        approved_status = 'approved',
+        approved_at = NOW()
+      WHERE school_id = $1
+        AND class_id = $2
+        AND division_id = $3
+        AND photo_status = 'completed'
         AND deleted_at IS NULL
+        AND approved_status IS DISTINCT FROM 'approved'
       RETURNING id
       `,
       [
@@ -649,11 +651,7 @@ router.put("/approve-bulk", async (req, res) => {
     });
 
   } catch (err) {
-    console.error(
-      "BULK APPROVE ERROR:",
-      err
-    );
-
+    console.error(err);
     res.status(500).json({
       error: "Bulk approval failed",
     });
