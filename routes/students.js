@@ -266,40 +266,127 @@ router.put("/approve-bulk", async (req, res) => {
       division_id,
     } = req.body;
 
-    const result = await db.query(
+    // Get required fields for this school
+    const schemaResult = await db.query(
       `
-      UPDATE students
-      SET
-        approved_status = 'approved',
-        approved_at = NOW()
+      SELECT field_key
+      FROM school_student_schema
       WHERE school_id = $1
-        AND class_id = $2
-        AND division_id = $3
-        AND photo_status = 'completed'
-        AND deleted_at IS NULL
-        AND approved_status IS DISTINCT FROM 'approved'
-      RETURNING id
+        AND required = true
       `,
-      [
-        school_id,
-        class_id,
-        division_id,
-      ]
+      [school_id]
     );
+
+    const requiredFields =
+      schemaResult.rows.map(
+        (r) => r.field_key
+      );
+
+    // Get completed students
+    const studentsResult =
+      await db.query(
+        `
+        SELECT *
+        FROM students
+        WHERE school_id = $1
+          AND class_id = $2
+          AND division_id = $3
+          AND photo_status = 'completed'
+          AND deleted_at IS NULL
+          AND approved_status IS DISTINCT FROM 'approved'
+        `,
+        [
+          school_id,
+          class_id,
+          division_id,
+        ]
+      );
+
+    let approvedCount = 0;
+    let skippedCount = 0;
+
+    for (const student of studentsResult.rows) {
+
+      let valid = true;
+
+      // Must have photo
+      if (!student.photo_drive_id) {
+        valid = false;
+      }
+
+      if (valid) {
+
+        const fieldResult =
+          await db.query(
+            `
+            SELECT
+              field_key,
+              field_value
+            FROM student_field_values
+            WHERE student_id = $1
+            `,
+            [student.id]
+          );
+
+        const values = {};
+
+        fieldResult.rows.forEach((f) => {
+          values[f.field_key] =
+            f.field_value;
+        });
+
+        for (const field of requiredFields) {
+
+          const value =
+            values[field];
+
+          if (
+            !value ||
+            value.toString().trim() === ""
+          ) {
+            valid = false;
+            break;
+          }
+        }
+      }
+
+      if (!valid) {
+        skippedCount++;
+        continue;
+      }
+
+      await db.query(
+        `
+        UPDATE students
+        SET
+          approved_status = 'approved',
+          approved_at = NOW()
+        WHERE id = $1
+        `,
+        [student.id]
+      );
+
+      approvedCount++;
+    }
 
     res.json({
       success: true,
-      approved: result.rows.length,
+      approved: approvedCount,
+      skipped: skippedCount,
+      total: studentsResult.rows.length,
     });
 
   } catch (err) {
-    console.error(err);
+    console.error(
+      "BULK APPROVAL ERROR:",
+      err
+    );
+
     res.status(500).json({
       error: "Bulk approval failed",
     });
   }
 });
-
 /* =====================================================
    UPDATE STUDENT
    NOW SUPPORTS CLASS + DIVISION CHANGE
