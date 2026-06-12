@@ -506,7 +506,11 @@ router.put("/approve/:id", async (req, res) => {
     const studentId = req.params.id;
 
     const st = await db.query(
-      `SELECT * FROM students WHERE id = $1`,
+      `
+      SELECT *
+      FROM students
+      WHERE id = $1
+      `,
       [studentId]
     );
 
@@ -518,54 +522,76 @@ router.put("/approve/:id", async (req, res) => {
 
     const student = st.rows[0];
 
+    // Photo required
     if (!student.photo_drive_id) {
       return res.status(400).json({
-        error:
-          "Upload photo before approval",
+        error: "Upload photo before approval",
       });
     }
 
-    const reqFields = await db.query(
+    // Get all active fields
+    const schemaResult = await db.query(
       `
       SELECT field_key
       FROM school_student_schema
       WHERE school_id = $1
-      AND active = true
-      AND required = true
+        AND active = true
       `,
       [student.school_id]
     );
 
-    for (const row of reqFields.rows) {
-      const val = await db.query(
-        `
-        SELECT field_value
-        FROM student_field_values
-        WHERE student_id = $1
-        AND field_key = $2
-        LIMIT 1
-        `,
-        [studentId, row.field_key]
-      );
+    // Ignore admission number and old empty columns
+    const fieldsToCheck =
+      schemaResult.rows
+        .map((r) => r.field_key)
+        .filter(
+          (field) =>
+            field !== "student_id" &&
+            !field.startsWith("__EMPTY")
+        );
+
+    // Get all student values
+    const fieldResult = await db.query(
+      `
+      SELECT
+        field_key,
+        field_value
+      FROM student_field_values
+      WHERE student_id = $1
+      `,
+      [studentId]
+    );
+
+    const values = {};
+
+    fieldResult.rows.forEach((f) => {
+      values[f.field_key] =
+        f.field_value;
+    });
+
+    // Validate every field
+    for (const field of fieldsToCheck) {
+      const value = values[field];
 
       if (
-        val.rows.length === 0 ||
-        !val.rows[0].field_value ||
-        val.rows[0].field_value.trim() === ""
+        !value ||
+        value.toString().trim() === ""
       ) {
         return res.status(400).json({
           error:
-            row.field_key +
-            " is required",
+            field +
+            " is required before approval",
         });
       }
     }
 
+    // Approve
     await db.query(
       `
       UPDATE students
-      SET approved_status='approved',
-          approved_at=NOW()
+      SET
+        approved_status = 'approved',
+        approved_at = NOW()
       WHERE id = $1
       `,
       [studentId]
@@ -574,14 +600,18 @@ router.put("/approve/:id", async (req, res) => {
     res.json({
       success: true,
     });
+
   } catch (err) {
-    console.error("APPROVE ERROR:", err);
+    console.error(
+      "APPROVE ERROR:",
+      err
+    );
+
     res.status(500).json({
       error: "Approval failed",
     });
   }
 });
-
 /* =====================================================
    DELETE STUDENT
 ===================================================== */
