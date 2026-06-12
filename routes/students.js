@@ -272,11 +272,16 @@ router.put("/approve-bulk", async (req, res) => {
       SELECT field_key
       FROM school_student_schema
       WHERE school_id = $1
-        AND required = true
       `,
       [school_id]
     );
-
+    const fieldsToCheck =
+  schemaResult.rows
+    .map(r => r.field_key)
+    .filter(
+      field =>
+        field !== "student_id"
+    );
     const requiredFields =
       schemaResult.rows.map(
         (r) => r.field_key
@@ -335,19 +340,19 @@ router.put("/approve-bulk", async (req, res) => {
             f.field_value;
         });
 
-        for (const field of requiredFields) {
+        for (const field of fieldsToCheck) {
 
-          const value =
-            values[field];
+  const value =
+    values[field];
 
-          if (
-            !value ||
-            value.toString().trim() === ""
-          ) {
-            valid = false;
-            break;
-          }
-        }
+  if (
+    !value ||
+    value.toString().trim() === ""
+  ) {
+    valid = false;
+    break;
+  }
+}
       }
 
       if (!valid) {
