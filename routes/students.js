@@ -653,10 +653,20 @@ router.get("/export/excel", async (req, res) => {
       SELECT
         st.id,
         st.photo_drive_id,
+
+        c.class_name,
+        d.division_name,
+
         sf.field_key,
         sf.field_value
 
       FROM students st
+
+      LEFT JOIN classes c
+        ON c.id = st.class_id
+
+      LEFT JOIN divisions d
+        ON d.id = st.division_id
 
       LEFT JOIN student_field_values sf
         ON sf.student_id = st.id
@@ -683,42 +693,112 @@ router.get("/export/excel", async (req, res) => {
         "Students"
       );
 
+    function toTitleCase(str) {
+      if (!str) return "";
+
+      return str
+        .toString()
+        .toLowerCase()
+        .split(" ")
+        .map(
+          (word) =>
+            word.charAt(0).toUpperCase() +
+            word.slice(1)
+        )
+        .join(" ");
+    }
+
     const map = {};
 
     result.rows.forEach((row) => {
+
       if (!map[row.id]) {
-        map[row.id] = {};
 
-        /* =========================
-           ADD IMAGE COLUMN
-        ========================= */
+        map[row.id] = {
+          class: row.class_name || "",
+          division: row.division_name || "",
+        };
+
         if (row.photo_drive_id) {
-          const filename =
-            row.photo_drive_id
-              .split("/")
-              .pop();
 
-          map[row.id]["@image"] =
-            `${filename}.jpg`;
-        } else {
-          map[row.id]["@image"] = "";
-        }
+        const filename =
+          row.photo_drive_id
+            .split("/")
+            .pop();
+
+        map[row.id]["@image"] =
+          `${filename}.jpg`;
+
+      } else {
+
+        map[row.id]["@image"] = "";
+              }
       }
 
-      map[row.id][row.field_key] =
-        row.field_value;
+      if (row.field_key) {
+
+        let value =
+          row.field_value || "";
+
+        if (
+          row.field_key === "name"
+        ) {
+          value =
+            value.toUpperCase();
+        } else {
+          value =
+            toTitleCase(value);
+        }
+
+        map[row.id][row.field_key] =
+          value;
+      }
     });
 
     const rows =
       Object.values(map);
 
     if (rows.length > 0) {
+
+      const firstRow =
+        rows[0];
+
+      const orderedColumns = [];
+
+      // Fixed columns first
+      if ("class" in firstRow)
+        orderedColumns.push("class");
+
+      if ("division" in firstRow)
+        orderedColumns.push("division");
+
+      if ("student_id" in firstRow)
+        orderedColumns.push("student_id");
+
+      if ("name" in firstRow)
+        orderedColumns.push("name");
+
+      if ("@image" in firstRow)
+        orderedColumns.push("@image");
+
+      // Remaining columns
+      Object.keys(firstRow).forEach((key) => {
+
+        if (
+          !orderedColumns.includes(key)
+        ) {
+          orderedColumns.push(key);
+        }
+
+      });
+
       sheet.columns =
-        Object.keys(rows[0]).map(
+        orderedColumns.map(
           (k) => ({
-            header: k,
+            header:
+              k.toUpperCase(),
             key: k,
-            width: 24,
+            width: 25,
           })
         );
 
@@ -740,7 +820,9 @@ router.get("/export/excel", async (req, res) => {
     await workbook.xlsx.write(res);
 
     res.end();
+
   } catch (err) {
+
     console.error(
       "EXPORT ERROR:",
       err
