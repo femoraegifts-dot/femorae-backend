@@ -760,47 +760,40 @@ router.get("/export/excel", async (req, res) => {
 
     if (rows.length > 0) {
 
-      const firstRow =
-        rows[0];
+      const allKeys = new Set();
 
-      const orderedColumns = [];
+rows.forEach((row) => {
+  Object.keys(row).forEach((key) => {
+    allKeys.add(key);
+  });
+});
 
-      // Fixed columns first
-      if ("class" in firstRow)
-        orderedColumns.push("class");
+const orderedColumns = [];
 
-      if ("division" in firstRow)
-        orderedColumns.push("division");
+// Fixed columns first
+[
+  "class",
+  "division",
+  "student_id",
+  "name",
+  "@image"
+].forEach((key) => {
+  if (allKeys.has(key)) {
+    orderedColumns.push(key);
+    allKeys.delete(key);
+  }
+});
 
-      if ("student_id" in firstRow)
-        orderedColumns.push("student_id");
+// Remaining fields
+orderedColumns.push(...Array.from(allKeys));
 
-      if ("name" in firstRow)
-        orderedColumns.push("name");
-
-      if ("@image" in firstRow)
-        orderedColumns.push("@image");
-
-      // Remaining columns
-      Object.keys(firstRow).forEach((key) => {
-
-        if (
-          !orderedColumns.includes(key)
-        ) {
-          orderedColumns.push(key);
-        }
-
-      });
-
-      sheet.columns =
-        orderedColumns.map(
-          (k) => ({
-            header:
-              k.toUpperCase(),
-            key: k,
-            width: 25,
-          })
-        );
+sheet.columns = orderedColumns.map(
+  (k) => ({
+    header: k.toUpperCase(),
+    key: k,
+    width: 25,
+  })
+);
 
       rows.forEach((r) =>
         sheet.addRow(r)
