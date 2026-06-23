@@ -595,65 +595,39 @@ router.get("/unapprove/:id", requireAdmin, async (req, res) => {
   }
 });
 
-/* ============================================
+/* ==========================================
    ADD CLASS
-============================================ */
+========================================== */
 router.post(
-  "/school/:id/add-class",
-  requireAdmin,
+  "/school/:schoolId/add-class",
   async (req, res) => {
     try {
-      const schoolId =
-        req.params.id;
-
-      const { class_name } =
-        req.body;
-
-      if (!class_name) {
-        return res.redirect(
-          `/admin/school/${schoolId}`
-        );
-      }
-
-      // prevent duplicate
-      const existing =
-        await db.query(
-          `
-          SELECT id
-          FROM classes
-          WHERE school_id = $1
-            AND LOWER(class_name) = LOWER($2)
-        `,
-          [
-            schoolId,
-            class_name,
-          ]
-        );
-
-      if (
-        existing.rows.length >
-        0
-      ) {
-        return res.redirect(
-          `/admin/school/${schoolId}`
-        );
-      }
+      const { schoolId } = req.params;
+      const { class_name } = req.body;
 
       await db.query(
         `
         INSERT INTO classes
-        (school_id, class_name)
-        VALUES ($1, $2)
-      `,
+        (
+          school_id,
+          class_name
+        )
+        VALUES
+        (
+          $1,
+          $2
+        )
+        `,
         [
           schoolId,
-          class_name,
+          class_name.trim(),
         ]
       );
 
       res.redirect(
         `/admin/school/${schoolId}`
       );
+
     } catch (err) {
       console.error(
         "ADD CLASS ERROR:",
