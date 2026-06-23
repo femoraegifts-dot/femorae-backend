@@ -38,56 +38,79 @@
 
     <div style="display:flex; gap:40px; margin-bottom:30px;">
 
-     //
-      <!-- ADD DIVISION -->
-      <form method="POST"
-            action="/admin/school/<%= school.id %>/add-division">
+  <!-- ADD CLASS -->
+  <form method="POST"
+        action="/admin/school/<%= school.id %>/add-class">
 
-        <h4>Add Division</h4>
+    <h4>Add Class</h4>
 
-        <select name="class_id"
-                required
-                style="padding:8px;">
+    <input
+      type="text"
+      name="class_name"
+      placeholder="Class Name"
+      required
+      style="padding:8px;"
+    >
 
-          <%
-          const uniqueClasses = [];
+    <button
+      type="submit"
+      style="padding:8px 12px;">
+      Add Class
+    </button>
 
-          structure.forEach(row => {
-            if(
-              !uniqueClasses.find(
-                c => c.class_id == row.class_id
-              )
-            ){
-              uniqueClasses.push(row);
-            }
-          });
-          %>
+  </form>
 
-          <% uniqueClasses.forEach(c => { %>
+  <!-- ADD DIVISION -->
+  <form method="POST"
+        action="/admin/school/<%= school.id %>/add-division">
 
-            <option value="<%= c.class_id %>">
-              <%= c.class_name %>
-            </option>
+    <h4>Add Division</h4>
 
-          <% }) %>
+    <select name="class_id"
+            required
+            style="padding:8px;">
 
-        </select>
+      <%
+      const uniqueClasses = [];
 
-        <input type="text"
-               name="division_name"
-               placeholder="Division"
-               required
-               style="padding:8px;">
+      structure.forEach(row => {
+        if (
+          !uniqueClasses.find(
+            c => c.class_id == row.class_id
+          )
+        ) {
+          uniqueClasses.push(row);
+        }
+      });
+      %>
 
-        <button type="submit"
-                style="padding:8px 12px;">
-          Add Division
-        </button>
+      <% uniqueClasses.forEach(c => { %>
 
-      </form>
+        <option value="<%= c.class_id %>">
+          <%= c.class_name %>
+        </option>
 
-    </div>
+      <% }) %>
 
+    </select>
+
+    <input
+      type="text"
+      name="division_name"
+      placeholder="Division"
+      required
+      style="padding:8px;"
+    >
+
+    <button
+      type="submit"
+      style="padding:8px 12px;">
+      Add Division
+    </button>
+
+  </form>
+
+</div>
     <!-- =========================================
          SCHOOL STRUCTURE
     ========================================== -->
