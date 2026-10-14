@@ -1,8 +1,4 @@
 require("dotenv").config();
-console.log("🔥 INDEX.JS RUNNING");
-console.log("CLIENT ID:", process.env.GOOGLE_CLIENT_ID);
-console.log("SECRET LENGTH:", process.env.GOOGLE_CLIENT_SECRET?.length);
-console.log("REFRESH LENGTH:", process.env.GOOGLE_REFRESH_TOKEN?.length);
 
 const express = require("express");
 const cors = require("cors");

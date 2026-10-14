@@ -2,7 +2,9 @@ const { Pool } = require("pg");
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: false, // internal Render DB usually doesn't need SSL
+  // Render PostgreSQL (incl. internal URLs) enforces SSL; rejectUnauthorized:false
+  // is required because Render presents a self-signed chain to the driver.
+  ssl: { rejectUnauthorized: false },
 });
 
 pool.on("connect", () => {
