@@ -28,7 +28,7 @@ router.post("/login", async (req, res) => {
     }
 
     const result = await safeQuery(
-      "SELECT id, name, username, password FROM schools WHERE username = $1",
+      "SELECT id, name, username, password, org_type, level1_label, level2_label, member_label FROM schools WHERE username = $1",
       [username]
     );
 
@@ -52,6 +52,10 @@ router.post("/login", async (req, res) => {
         id: school.id,
         name: school.name,
         username: school.username,
+        org_type: school.org_type ?? "school",
+        level1_label: school.level1_label ?? "Class",
+        level2_label: school.level2_label ?? "Division",
+        member_label: school.member_label ?? "Student",
       },
     });
 
