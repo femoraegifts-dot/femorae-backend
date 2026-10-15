@@ -605,6 +605,35 @@ router.post(
       const { schoolId } = req.params;
       const { class_name } = req.body;
 
+      const normalized = (class_name || "")
+        .toString()
+        .trim();
+
+      if (normalized === "") {
+        return res.redirect(
+          `/admin/school/${schoolId}`
+        );
+      }
+
+      /* Friendly duplicate check, consistent
+         with imports (case-insensitive). */
+      const existing =
+        await db.query(
+          `
+          SELECT id
+          FROM classes
+          WHERE school_id = $1
+            AND LOWER(TRIM(class_name)) = LOWER(TRIM($2))
+          `,
+          [schoolId, normalized]
+        );
+
+      if (existing.rows.length > 0) {
+        return res.redirect(
+          `/admin/school/${schoolId}`
+        );
+      }
+
       await db.query(
         `
         INSERT INTO classes
@@ -620,7 +649,7 @@ router.post(
         `,
         [
           schoolId,
-          class_name.trim(),
+          normalized,
         ]
       );
 
@@ -629,6 +658,14 @@ router.post(
       );
 
     } catch (err) {
+      /* Concurrent duplicate race: unique
+         constraint backstop, no internals leaked. */
+      if (err && err.code === "23505") {
+        return res.redirect(
+          `/admin/school/${req.params.schoolId}`
+        );
+      }
+
       console.error(
         "ADD CLASS ERROR:",
         err

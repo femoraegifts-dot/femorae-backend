@@ -103,21 +103,49 @@ async function insertStudents(rows, school_id) {
       if (classRes.rows.length > 0) {
         class_id = classRes.rows[0].id;
       } else {
+        /* Race-safe: concurrent imports may insert
+           the same logical class simultaneously;
+           the UNIQUE(school_id, class_key) arbiter
+           turns the loser into a no-op, and we
+           re-read the winner below. */
         const insertClass = await client.query(
           `INSERT INTO classes (class_name, school_id)
            VALUES ($1, $2)
+           ON CONFLICT (school_id, class_key) DO NOTHING
            RETURNING id`,
           [className, school_id]
         );
 
-        class_id = insertClass.rows[0].id;
+        if (insertClass.rows.length > 0) {
+          class_id = insertClass.rows[0].id;
+        } else {
+          const retryClass = await client.query(
+            `SELECT id FROM classes
+             WHERE school_id = $1
+             AND LOWER(class_name) = LOWER($2)`,
+            [school_id, className]
+          );
+
+          class_id = retryClass.rows[0].id;
+        }
+
         console.log("✅ New class created:", className);
       }
 
       /* =========================
          2️⃣ GET OR CREATE DIVISION
+         Division-less rows (absent or blank
+         division) resolve to the class default
+         division named "-". Never NULL.
       ========================= */
-      const divisionName = r.division?.toString().trim();
+      const rawDivision = r.division
+        ?.toString()
+        .trim();
+
+      const divisionName =
+        rawDivision && rawDivision !== ""
+          ? rawDivision
+          : "-";
 
       let divisionRes = await client.query(
         `SELECT id FROM divisions
@@ -131,14 +159,32 @@ async function insertStudents(rows, school_id) {
       if (divisionRes.rows.length > 0) {
         division_id = divisionRes.rows[0].id;
       } else {
+        /* Race-safe: concurrent imports may insert
+           the same default simultaneously; the
+           UNIQUE(class_id, division_name) arbiter
+           turns the loser into a no-op, and we
+           re-read the winner below. */
         const insertDivision = await client.query(
           `INSERT INTO divisions (division_name, class_id)
            VALUES ($1, $2)
+           ON CONFLICT (class_id, division_name) DO NOTHING
            RETURNING id`,
           [divisionName, class_id]
         );
 
-        division_id = insertDivision.rows[0].id;
+        if (insertDivision.rows.length > 0) {
+          division_id = insertDivision.rows[0].id;
+        } else {
+          const retryRes = await client.query(
+            `SELECT id FROM divisions
+             WHERE class_id = $1
+             AND LOWER(division_name) = LOWER($2)`,
+            [class_id, divisionName]
+          );
+
+          division_id = retryRes.rows[0].id;
+        }
+
         console.log("✅ New division created:", divisionName);
       }
 
