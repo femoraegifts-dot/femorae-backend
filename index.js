@@ -1,11 +1,30 @@
 require("dotenv").config();
 
+/* Session secret is mandatory. Fail before serving
+   anything rather than falling back to a default. */
+if (
+  !process.env.SESSION_SECRET ||
+  process.env.SESSION_SECRET.trim() === ""
+) {
+  console.error(
+    "FATAL: SESSION_SECRET is not set. Refusing to start."
+  );
+  process.exit(1);
+}
+
 const express = require("express");
 const cors = require("cors");
 const session = require("express-session");
 const path = require("path");
+const pgSession = require("connect-pg-simple")(session);
+const db = require("./config/db");
 
 const app = express();
+
+/* Render terminates TLS at its edge proxy and forwards
+   plain HTTP to this service (single hop). Trust exactly
+   that hop so Secure cookies work behind the proxy. */
+app.set("trust proxy", 1);
 
 /* =========================
    DATABASE (LOAD ONCE)
@@ -21,9 +40,19 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "femorae_admin_secret",
+    store: new pgSession({
+      pool: db,
+      tableName: "session",
+      createTableIfMissing: false,
+    }),
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+    },
   })
 );
 
