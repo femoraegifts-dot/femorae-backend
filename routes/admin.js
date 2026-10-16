@@ -301,6 +301,504 @@ router.get(
 );
 
 /* ============================================
+   STUDENT REGISTER
+   Excel-like register with school / class /
+   division / search / status filters.
+   100 rows per page. Soft-deleted excluded.
+============================================ */
+router.get(
+  "/register",
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const {
+        school_id,
+        class_id,
+        division_id,
+        q,
+        photo_status,
+        approved_status,
+      } = req.query;
+
+      let page = parseInt(
+        req.query.page,
+        10
+      );
+
+      if (
+        !Number.isFinite(page) ||
+        page < 1
+      ) {
+        page = 1;
+      }
+
+      const LIMIT = 100;
+
+      const conditions = [
+        "st.deleted_at IS NULL",
+      ];
+      const params = [];
+
+      if (school_id) {
+        params.push(school_id);
+        conditions.push(
+          `st.school_id = $${params.length}`
+        );
+      }
+
+      if (class_id) {
+        params.push(class_id);
+        conditions.push(
+          `st.class_id = $${params.length}`
+        );
+      }
+
+      if (division_id) {
+        params.push(division_id);
+        conditions.push(
+          `st.division_id = $${params.length}`
+        );
+      }
+
+      if (
+        photo_status ===
+          "pending" ||
+        photo_status ===
+          "completed"
+      ) {
+        params.push(photo_status);
+        conditions.push(
+          `st.photo_status = $${params.length}`
+        );
+      }
+
+      if (
+        approved_status ===
+        "approved"
+      ) {
+        conditions.push(
+          `st.approved_status = 'approved'`
+        );
+      } else if (
+        approved_status ===
+        "pending"
+      ) {
+        conditions.push(
+          `(st.approved_status IS NULL OR st.approved_status <> 'approved')`
+        );
+      }
+
+      const searchText = (q || "")
+        .toString()
+        .trim();
+
+      if (searchText !== "") {
+        params.push(
+          `%${searchText}%`
+        );
+        conditions.push(
+          `EXISTS (
+            SELECT 1
+            FROM student_field_values sfq
+            WHERE sfq.student_id = st.id
+              AND sfq.field_key IN ('student_id', 'name')
+              AND sfq.field_value ILIKE $${params.length}
+          )`
+        );
+      }
+
+      const where =
+        `WHERE ${conditions.join(" AND ")}`;
+
+      /* Filtered total (same conditions as rows) */
+      const countRes =
+        await db.query(
+          `
+          SELECT COUNT(DISTINCT st.id) AS total
+          FROM students st
+          ${where}
+          `,
+          params
+        );
+
+      const total =
+        parseInt(
+          countRes.rows[0].total,
+          10
+        ) || 0;
+
+      /* Summary cards share the exact filter
+         conditions (no pagination). Counting rules:
+         approved = approved_status 'approved';
+         pending = every other active student. */
+      const summaryRes =
+        await db.query(
+          `
+          SELECT
+            COUNT(DISTINCT st.id) AS total,
+            COUNT(
+              DISTINCT CASE
+                WHEN st.approved_status = 'approved'
+                THEN st.id
+              END
+            ) AS approved
+          FROM students st
+          ${where}
+          `,
+          params
+        );
+
+      const summaryTotal =
+        parseInt(
+          summaryRes.rows[0].total,
+          10
+        ) || 0;
+
+      const summaryApproved =
+        parseInt(
+          summaryRes.rows[0].approved,
+          10
+        ) || 0;
+
+      const summary = {
+        total: summaryTotal,
+        approved: summaryApproved,
+        pending: Math.max(
+          0,
+          summaryTotal - summaryApproved
+        ),
+      };
+
+      const totalPages = Math.max(
+        1,
+        Math.ceil(total / LIMIT)
+      );
+
+      const safePage = Math.min(
+        page,
+        totalPages
+      );
+
+      const safeOffset =
+        (safePage - 1) * LIMIT;
+
+      /* Page rows. EAV join restricted to the two
+         display keys + MAX aggregation, so rows
+         can never multiply. */
+      const rowsRes =
+        await db.query(
+          `
+          SELECT
+            st.id,
+            st.photo_status,
+            st.photo_drive_id,
+            st.photo_version,
+            st.approved_status,
+            st.updated_at,
+            s.name AS school_name,
+            c.class_name,
+            d.division_name,
+            MAX(
+              CASE
+                WHEN sf.field_key = 'student_id'
+                THEN sf.field_value
+              END
+            ) AS admission_no,
+            MAX(
+              CASE
+                WHEN sf.field_key = 'name'
+                THEN sf.field_value
+              END
+            ) AS student_name
+          FROM students st
+          LEFT JOIN schools s
+            ON s.id = st.school_id
+          LEFT JOIN classes c
+            ON c.id = st.class_id
+          LEFT JOIN divisions d
+            ON d.id = st.division_id
+          LEFT JOIN student_field_values sf
+            ON sf.student_id = st.id
+            AND sf.field_key IN ('student_id', 'name')
+          ${where}
+          GROUP BY
+            st.id,
+            s.name,
+            c.class_name,
+            d.division_name,
+            st.photo_status,
+            st.photo_drive_id,
+            st.photo_version,
+            st.approved_status,
+            st.updated_at
+          ORDER BY st.id
+          LIMIT ${LIMIT} OFFSET ${safeOffset}
+          `,
+          params
+        );
+
+      /* Photo thumbnails from stored parts */
+      const cloudName =
+        process.env.CLOUDINARY_CLOUD_NAME ||
+        "";
+
+      const students =
+        rowsRes.rows.map((r) => {
+          let photoUrl = null;
+
+          if (
+            cloudName &&
+            r.photo_drive_id
+          ) {
+            photoUrl = r.photo_version
+              ? `https://res.cloudinary.com/${cloudName}/image/upload/w_100,q_auto/v${r.photo_version}/${r.photo_drive_id}.jpg`
+              : `https://res.cloudinary.com/${cloudName}/image/upload/w_100,q_auto/${r.photo_drive_id}.jpg`;
+          }
+
+          return {
+            ...r,
+            photo_url: photoUrl,
+          };
+        });
+
+      /* Filter dropdown data */
+      const schoolsRes =
+        await db.query(`
+          SELECT id, name
+          FROM schools
+          ORDER BY name
+        `);
+
+      let classes = [];
+      let divisions = [];
+
+      if (school_id) {
+        const classesRes =
+          await db.query(
+            `
+            SELECT id, class_name
+            FROM classes
+            WHERE school_id = $1
+            ORDER BY class_name
+            `,
+            [school_id]
+          );
+        classes = classesRes.rows;
+      }
+
+      if (class_id) {
+        const divisionsRes =
+          await db.query(
+            `
+            SELECT id, division_name
+            FROM divisions
+            WHERE class_id = $1
+            ORDER BY division_name
+            `,
+            [class_id]
+          );
+        divisions =
+          divisionsRes.rows;
+      }
+
+      /* Preserve filters in page links */
+      const kept = [];
+
+      if (school_id)
+        kept.push(
+          `school_id=${encodeURIComponent(school_id)}`
+        );
+      if (class_id)
+        kept.push(
+          `class_id=${encodeURIComponent(class_id)}`
+        );
+      if (division_id)
+        kept.push(
+          `division_id=${encodeURIComponent(division_id)}`
+        );
+      if (searchText !== "")
+        kept.push(
+          `q=${encodeURIComponent(searchText)}`
+        );
+      if (
+        photo_status ===
+          "pending" ||
+        photo_status === "completed"
+      )
+        kept.push(
+          `photo_status=${photo_status}`
+        );
+      if (
+        approved_status ===
+          "approved" ||
+        approved_status === "pending"
+      )
+        kept.push(
+          `approved_status=${approved_status}`
+        );
+
+      const queryBase =
+        kept.length > 0
+          ? kept.join("&") + "&"
+          : "";
+
+      res.render(
+        "admin/register",
+        {
+          students,
+          schools: schoolsRes.rows,
+          classes,
+          divisions,
+          filters: {
+            school_id: school_id || "",
+            class_id: class_id || "",
+            division_id:
+              division_id || "",
+            q: searchText,
+            photo_status:
+              photo_status === "pending" ||
+              photo_status === "completed"
+                ? photo_status
+                : "",
+            approved_status:
+              approved_status ===
+                "approved" ||
+              approved_status === "pending"
+                ? approved_status
+                : "",
+          },
+          total,
+          summary,
+          page: safePage,
+          totalPages,
+          queryBase,
+        }
+      );
+    } catch (err) {
+      console.error(
+        "REGISTER ERROR:",
+        err
+      );
+
+      res.status(500).send(
+        "Server error"
+      );
+    }
+  }
+);
+
+/* ============================================
+   STUDENT DETAIL (read-only)
+   Single-student view for the register.
+   No edit / approve / delete actions.
+============================================ */
+router.get(
+  "/student/:id",
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const studentRes =
+        await db.query(
+          `
+          SELECT
+            st.id,
+            st.school_id,
+            st.class_id,
+            st.division_id,
+            st.photo_status,
+            st.photo_drive_id,
+            st.photo_version,
+            st.approved_status,
+            st.approved_at,
+            st.created_at,
+            st.updated_at,
+            s.name AS school_name,
+            c.class_name,
+            d.division_name
+          FROM students st
+          LEFT JOIN schools s
+            ON s.id = st.school_id
+          LEFT JOIN classes c
+            ON c.id = st.class_id
+          LEFT JOIN divisions d
+            ON d.id = st.division_id
+          WHERE st.id = $1
+            AND st.deleted_at IS NULL
+          `,
+          [req.params.id]
+        );
+
+      if (
+        studentRes.rows.length === 0
+      ) {
+        return res.status(404).send(
+          "Student not found"
+        );
+      }
+
+      const student =
+        studentRes.rows[0];
+
+      const fieldsRes =
+        await db.query(
+          `
+          SELECT DISTINCT ON (field_key)
+            field_key,
+            field_value
+          FROM student_field_values
+          WHERE student_id = $1
+          ORDER BY field_key, id DESC
+          `,
+          [req.params.id]
+        );
+
+      const fieldMap = {};
+      fieldsRes.rows.forEach((f) => {
+        fieldMap[f.field_key] = f.field_value;
+      });
+
+      student.admission_no =
+        fieldMap["student_id"] || null;
+      student.student_name =
+        fieldMap["name"] || null;
+
+      const cloudName =
+        process.env.CLOUDINARY_CLOUD_NAME ||
+        "";
+
+      let photoUrl = null;
+
+      if (
+        cloudName &&
+        student.photo_drive_id
+      ) {
+        photoUrl = student.photo_version
+          ? `https://res.cloudinary.com/${cloudName}/image/upload/w_400,q_auto/v${student.photo_version}/${student.photo_drive_id}.jpg`
+          : `https://res.cloudinary.com/${cloudName}/image/upload/w_400,q_auto/${student.photo_drive_id}.jpg`;
+      }
+
+      res.render(
+        "admin/student_detail",
+        {
+          student,
+          fields: fieldsRes.rows,
+          photoUrl,
+        }
+      );
+    } catch (err) {
+      console.error(
+        "STUDENT DETAIL ERROR:",
+        err
+      );
+
+      res.status(500).send(
+        "Server error"
+      );
+    }
+  }
+);
+
+/* ============================================
    API CLASSES
 ============================================ */
 router.get(

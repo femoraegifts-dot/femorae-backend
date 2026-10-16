@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Student Detail</title>
+  <link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+
+<%- include('../partials/header') %>
+
+<div style="display:flex;">
+  <%- include('../partials/sidebar') %>
+
+  <div style="padding:20px; flex:1;">
+
+    <p>
+      <a href="/admin/register">&laquo; Back to Register</a>
+    </p>
+
+    <h2>
+      <%= student.student_name || student.admission_no || ('Student #' + student.id) %>
+    </h2>
+
+    <!-- =========================================
+         IDENTITY AND STATUS (read-only)
+    ========================================== -->
+
+    <table border="1"
+           cellpadding="8"
+           cellspacing="0">
+
+      <tbody>
+
+        <tr>
+          <td><strong>DB ID</strong></td>
+          <td><%= student.id %></td>
+        </tr>
+
+        <tr>
+          <td><strong>School</strong></td>
+          <td><%= student.school_name || '-' %></td>
+        </tr>
+
+        <tr>
+          <td><strong>Class</strong></td>
+          <td><%= student.class_name || '-' %></td>
+        </tr>
+
+        <tr>
+          <td><strong>Division</strong></td>
+          <td><%= student.division_name || '-' %></td>
+        </tr>
+
+        <tr>
+          <td><strong>Photo status</strong></td>
+          <td><%= student.photo_status || 'pending' %></td>
+        </tr>
+
+        <tr>
+          <td><strong>Approval</strong></td>
+          <td>
+
+            <% if (student.approved_status === 'approved') { %>
+
+              <span style="color:green; font-weight:bold;">
+                Approved<%= student.approved_at ? ' on ' + student.approved_at : '' %>
+              </span>
+
+            <% } else { %>
+
+              <span style="color:orange; font-weight:bold;">
+                Pending
+              </span>
+
+            <% } %>
+
+          </td>
+        </tr>
+
+        <tr>
+          <td><strong>Created</strong></td>
+          <td><%= student.created_at || '' %></td>
+        </tr>
+
+        <tr>
+          <td><strong>Updated</strong></td>
+          <td><%= student.updated_at || '' %></td>
+        </tr>
+
+      </tbody>
+
+    </table>
+
+    <!-- =========================================
+         PHOTO (read-only)
+    ========================================== -->
+
+    <h3>Photo</h3>
+
+    <% if (photoUrl) { %>
+
+      <a href="<%= photoUrl %>" target="_blank">
+        <img src="<%= photoUrl %>"
+             alt="student photo"
+             width="200">
+      </a>
+
+    <% } else { %>
+
+      <p style="color:#666;">No photo uploaded.</p>
+
+    <% } %>
+
+    <!-- =========================================
+         ALL STORED FIELDS (dynamic EAV)
+    ========================================== -->
+
+    <h3>Stored fields</h3>
+
+    <table border="1"
+           cellpadding="8"
+           cellspacing="0"
+           width="100%">
+
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+
+      <tbody>
+
+        <% fields.forEach(f => { %>
+
+          <tr>
+            <td><%= f.field_key %></td>
+            <td><%= f.field_value || '' %></td>
+          </tr>
+
+        <% }) %>
+
+        <% if (fields.length === 0) { %>
+
+          <tr>
+            <td colspan="2" style="text-align:center;">
+              No stored fields.
+            </td>
+          </tr>
+
+        <% } %>
+
+      </tbody>
+
+    </table>
+
+  </div>
+</div>
+
+</body>
+</html>
